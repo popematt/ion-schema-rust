@@ -7,7 +7,7 @@ use crate::result::{invalid_schema_error, IonSchemaResult, ValidationResult};
 use crate::system::{PendingTypes, TypeId, TypeStore};
 use crate::violation::{Violation, ViolationCode};
 use crate::IonSchemaElement;
-use ion_rs::element::Element;
+use ion_rs::Element;
 use ion_rs::IonType;
 use ion_rs::Symbol;
 use std::fmt::{Display, Formatter};
@@ -54,7 +54,7 @@ impl TypeDefinition {
 
     /// Provides the validation for the given value based on this schema type
     /// ```
-    /// use ion_rs::element::Element;
+    /// use ion_rs::Element;
     /// use ion_schema::IonSchemaElement;
     /// use ion_schema::authority::{FileSystemDocumentAuthority, DocumentAuthority};
     /// use ion_schema::system::SchemaSystem;
@@ -97,7 +97,7 @@ impl TypeDefinition {
     ///     Ok(())
     /// }
     /// ```
-    pub fn validate<I: Into<IonSchemaElement>>(&self, value: I) -> ValidationResult {
+    pub fn validate<'a, I: Into<IonSchemaElement<'a>>>(&self, value: I) -> ValidationResult {
         let type_def = self.type_store.get_type_by_id(self.id).unwrap();
 
         // convert given IonSchemaElement to an Element
@@ -110,6 +110,7 @@ impl TypeDefinition {
 /// Represents a [`BuiltInTypeDefinition`] which stores a resolved builtin ISl type using [`TypeStore`]
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum BuiltInTypeDefinition {
+    // TODO: Switch this to use IonSchemaElementType
     Atomic(IonType, Nullability),
     Derived(TypeDefinitionImpl),
 }
@@ -131,7 +132,7 @@ impl BuiltInTypeDefinition {
         let mut constraints = vec![];
 
         // parses an isl_type to a TypeDefinition
-        let type_name = isl_type.name();
+        let type_name = isl_type.name().map(|x| x.to_owned());
 
         // convert IslConstraint to Constraint
         for isl_constraint in isl_type.constraints() {
@@ -175,8 +176,8 @@ impl TypeValidator for BuiltInTypeDefinition {
         match &self {
             BuiltInTypeDefinition::Atomic(ion_type, is_nullable) => {
                 // atomic types doesn't include document type
-                match value {
-                    IonSchemaElement::SingleElement(element) => {
+                match value.as_element() {
+                    Some(element) => {
                         if *is_nullable == Nullability::NotNullable && element.is_null() {
                             return Err(Violation::new(
                                 "type_constraint",
@@ -200,7 +201,7 @@ impl TypeValidator for BuiltInTypeDefinition {
 
                         Ok(())
                     }
-                    IonSchemaElement::Document(document) => Err(Violation::new(
+                    _ => Err(Violation::new(
                         "type_constraint",
                         ViolationCode::TypeMismatched,
                         format!("expected type {ion_type:?}, found document"),
@@ -471,7 +472,7 @@ impl TypeDefinitionImpl {
         }
 
         // add this unresolved type to context for type_id
-        let type_id = pending_types.add_type(type_store, type_name.to_owned());
+        let type_id = pending_types.add_type(type_store, type_name.map(|x| x.to_owned()));
 
         // convert IslConstraint to Constraint
         let mut found_type_constraint = false;
@@ -495,7 +496,7 @@ impl TypeDefinitionImpl {
         if !found_type_constraint && isl_version == IslVersion::V1_0 {
             // set the isl type name for any error that is returned while parsing its constraints
             let isl_type_name = match type_name.to_owned() {
-                Some(name) => name,
+                Some(name) => name.to_owned(),
                 None => match isl_struct {
                     None => "".to_owned(),
                     Some(isl_type_struct) => format!("{isl_type_struct}"),
@@ -523,7 +524,7 @@ impl TypeDefinitionImpl {
         }
 
         let type_def = TypeDefinitionImpl::new(
-            type_name.to_owned(),
+            type_name.map(|x| x.to_owned()),
             constraints,
             isl_type.isl_type_struct.to_owned(),
         );

@@ -3,7 +3,7 @@ use crate::system::TypeStore;
 use crate::type_reference::TypeReference;
 use crate::types::TypeValidator;
 use crate::IonSchemaElement;
-use ion_rs::element::Element;
+use ion_rs::{Element, Sequence};
 use std::collections::{HashMap, HashSet};
 use std::iter::Peekable;
 use std::slice::Iter;
@@ -156,8 +156,9 @@ impl NfaEvaluation {
     }
 
     /// Validates provided ordered elements against referenced [Nfa]
-    pub fn validate_ordered_elements(&mut self, elements: &[Element], type_store: &TypeStore) {
-        let mut elements_iter = elements.iter().peekable();
+    pub fn validate_ordered_elements(&mut self, elements: &Sequence, type_store: &TypeStore) {
+        let elements_vec = elements.iter().collect::<Vec<_>>();
+        let mut elements_iter = elements_vec.as_slice().iter().peekable();
         // given elements are actually events for the `Nfa` referenced in this `NfaEvaluation`.
         // iterate through all elements and update state-visit count(`NfaRun`) for all possible transitions for given element(event).
         while let Some(element) = elements_iter.next() {
@@ -174,6 +175,7 @@ impl NfaEvaluation {
                     &mut next_states,
                 );
             }
+            println!("{:?}", next_states);
             self.visits = next_states;
         }
     }
@@ -185,7 +187,7 @@ impl NfaEvaluation {
         nfa_run: &NfaRun,
         transitions: HashSet<Transition>,
         current_element: &Element,
-        elements: &mut Peekable<Iter<Element>>,
+        elements: &mut Peekable<Iter<&Element>>,
         type_store: &TypeStore,
         nfa_runs: &mut HashSet<NfaRun>,
     ) {
@@ -238,7 +240,7 @@ impl NfaEvaluation {
         visits: usize,
         transition: &Transition,
         element: &Element,
-        elements: &mut Peekable<Iter<Element>>,
+        elements: &mut Peekable<Iter<&Element>>,
         type_store: &TypeStore,
         next_states: &mut HashSet<NfaRun>,
     ) {
@@ -272,7 +274,7 @@ impl NfaEvaluation {
         visits: usize,
         transition: &Transition,
         element: &Element,
-        elements: &mut Peekable<Iter<Element>>,
+        elements: &mut Peekable<Iter<&Element>>,
         type_store: &TypeStore,
         next_states: &mut HashSet<NfaRun>,
     ) -> bool {

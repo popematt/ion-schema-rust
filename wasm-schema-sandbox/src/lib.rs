@@ -1,6 +1,6 @@
 use ion_schema::authority::{DocumentAuthority, MapDocumentAuthority};
 
-use ion_schema::external::ion_rs::element::Element;
+use ion_schema::external::ion_rs::{Element, Sequence};
 use ion_schema::external::ion_rs::IonResult;
 use ion_schema::result::IonSchemaResult;
 use ion_schema::schema::Schema;
@@ -24,7 +24,7 @@ macro_rules! log {
     }
 }
 
-fn load_all(text: &str) -> IonResult<Vec<Element>> {
+fn load_all(text: &str) -> IonResult<Sequence> {
     Element::read_all(text.as_bytes())
 }
 
@@ -171,11 +171,12 @@ pub fn validate(
     );
 
     // get Element from given ion text
-    let values_result = load_all(ion);
 
-    let value = match values_result {
-        Ok(v) if is_document => IonSchemaElement::Document(v),
-        Ok(v) => IonSchemaElement::SingleElement(v[0].to_owned()),
+    let value = match load_all(ion) {
+        Ok(v) => {
+            log!("loaded ion value successfully!");
+            v
+        }
         Err(_) => {
             return SchemaValidationResult::new(
                 false,
@@ -187,10 +188,20 @@ pub fn validate(
         }
     };
 
-    log!("loaded ion value successfully!");
-
-    // Validate data based on `schema_type`
-    let result = type_ref.validate(value.to_owned());
+    let result = if is_document {
+        type_ref.validate(&value)
+    } else {
+        if value.len() != 1 {
+            return SchemaValidationResult::new(
+                false,
+                Array::new(),
+                ion.to_string(),
+                true,
+                "More than one Ion value provided but validating as document is not selected".to_string(),
+            )
+        }
+        type_ref.validate(value.get(0).unwrap())
+    };
 
     log!("validation complete!");
 
@@ -214,7 +225,7 @@ pub fn validate(
     let result: SchemaValidationResult = SchemaValidationResult::new(
         result.is_ok(),
         violations_result,
-        format!("{value}"),
+        format!("{ion}"),
         false,
         "".to_string(),
     );

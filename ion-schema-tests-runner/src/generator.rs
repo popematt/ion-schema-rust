@@ -1,6 +1,6 @@
 use crate::generator::util::*;
 use crate::model::{TestCaseDetails, TestCaseVec};
-use ion_rs::element::Element;
+use ion_rs::Element;
 use ion_rs::IonType;
 use ion_schema::isl::IslVersion;
 use proc_macro2::{Literal, TokenStream, TokenTree};
@@ -10,6 +10,7 @@ use std::convert::TryInto;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
+use ion_rs::Sequence;
 
 /// Function or closure for checking whether to skip/ignore a test case.
 /// The [String] argument is the Rust test name (E.g. foo::bar::my_test), and the function should
@@ -121,7 +122,7 @@ fn generate_test_cases_for_file(ctx: Context) -> TokenStream {
     // get the schema content from given schema file path
     let ion_content = fs::read(ctx.current_dir.as_path())
         .unwrap_or_else(|e| panic!("Unable to read {path_string} – {e}"));
-    let schema_content =
+    let schema_content: Sequence =
         Element::read_all(ion_content).unwrap_or_else(|e| panic!("Error in {path_string} – {e:?}"));
 
     let isl_version = find_isl_version(&schema_content);
@@ -173,7 +174,7 @@ fn generate_test_cases_for_file(ctx: Context) -> TokenStream {
 }
 
 /// find ISL version from schema content
-fn find_isl_version(schema_content: &[Element]) -> IslVersion {
+fn find_isl_version(schema_content: &Sequence) -> IslVersion {
     // ISL version marker regex
     let isl_version_marker: Regex = Regex::new(r"^\$ion_schema_\d.*$").unwrap();
 
@@ -266,7 +267,7 @@ fn generate_preamble(root_dir_path: &Path) -> TokenStream {
     let root_dir_token = TokenTree::from(Literal::string(root_dir_path.to_str().unwrap()));
 
     quote! {
-        use ion_rs::element::Sequence;
+        use ion_rs::Sequence;
         use std::hash::{Hash, Hasher};
 
         /// Gets the root directory for the test suite.
@@ -320,18 +321,18 @@ fn generate_preamble(root_dir_path: &Path) -> TokenStream {
 
         /// Asserts that a value is or is not valid for a given ISL type.
         fn __assert_value_validity_for_type(value_ion: &str, schema_id: &str, type_id: &str, expect_valid: bool) -> Result<(), String> {
-            let schema = __new_schema_system().load_schema(schema_id).unwrap();
-            let isl_type = schema.get_type(type_id).unwrap();
-            let value: ion_rs::element::Element = ion_rs::element::Element::read_one(value_ion.as_bytes()).unwrap();
+            let schema = __new_schema_system().load_schema(schema_id).expect(&format!("Expected to load schema: {}", schema_id));
+            let isl_type = schema.get_type(type_id).expect(&format!("Expected to get type: {}", type_id));
+            let value: ion_rs::Element = ion_rs::Element::read_one(value_ion.as_bytes()).expect(&format!("Expected to be able to read value: {}", value_ion));
             let prepared_value: ion_schema::IonSchemaElement = if value.annotations().contains("document") && value.ion_type() == ion_rs::IonType::SExp {
                 let element_vec = value.as_sequence()
-                    .unwrap_or_else(|| unreachable!("We already confirmed that this is a s-expression."))
+                    .expect("We already confirmed that this is a s-expression.")
                     .elements()
                     .map(|it| it.to_owned())
                     .collect::<Vec<_>>();
-                ion_schema::IonSchemaElement::Document(element_vec)
+                ion_schema::IonSchemaElement::from(element_vec)
             } else {
-                ion_schema::IonSchemaElement::SingleElement(value)
+                ion_schema::IonSchemaElement::from(value)
             };
             let validation_result = isl_type.validate(prepared_value);
             if validation_result.is_ok() == expect_valid {

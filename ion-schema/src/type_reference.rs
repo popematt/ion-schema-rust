@@ -4,7 +4,7 @@ use crate::isl::ranges::UsizeRange;
 use crate::result::ValidationResult;
 use crate::system::{TypeId, TypeStore};
 use crate::types::TypeValidator;
-use crate::IonSchemaElement;
+use crate::{IonSchemaElement, IonSchemaElementType};
 use ion_rs::IonType;
 
 /// Provides reference to a type definition.
@@ -48,8 +48,8 @@ impl TypeValidator for TypeReference {
         use crate::isl::isl_type_reference::NullabilityModifier::*;
         let type_def = type_store.get_type_by_id(self.type_id()).unwrap();
         match self.type_modifier {
-            Nullable => match value {
-                IonSchemaElement::SingleElement(element) => {
+            Nullable => match value.as_element() {
+                Some(element) => {
                     if element.is_null()
                         && (element.ion_type() == IonType::Null
                             || type_def
@@ -58,13 +58,11 @@ impl TypeValidator for TypeReference {
                         return Ok(());
                     }
                 }
-                IonSchemaElement::Document(_) => {}
+                _ => {}
             },
             NullOr => {
-                if let IonSchemaElement::SingleElement(element) = value {
-                    if element.ion_type() == IonType::Null {
-                        return Ok(());
-                    }
+                if value.ion_schema_type() == IonSchemaElementType::Null {
+                    return Ok(());
                 }
             }
             Nothing => {}

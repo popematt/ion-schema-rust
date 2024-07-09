@@ -11,7 +11,7 @@ use crate::isl::util::{
     Annotation, Ieee754InterchangeFormat, TimestampOffset, TimestampPrecision, ValidValue,
 };
 use crate::isl::IslVersion;
-use crate::isl_require;
+use crate::{isl_require};
 use crate::nfa::{FinalState, NfaBuilder, NfaEvaluation};
 use crate::result::{
     invalid_schema_error, invalid_schema_error_raw, IonSchemaResult, ValidationResult,
@@ -21,8 +21,8 @@ use crate::type_reference::{TypeReference, VariablyOccurringTypeRef};
 use crate::types::TypeValidator;
 use crate::violation::{Violation, ViolationCode};
 use crate::IonSchemaElement;
-use ion_rs::element::Element;
-use ion_rs::element::Value;
+use ion_rs::{Element};
+use ion_rs::Value;
 use ion_rs::IonData;
 use ion_rs::IonType;
 use num_traits::ToPrimitive;
@@ -899,27 +899,24 @@ impl ConstraintValidator for OrderedElementsConstraint {
     ) -> ValidationResult {
         let violations: Vec<Violation> = vec![];
 
-        let values: Vec<Element> = match &value {
-            IonSchemaElement::SingleElement(element) => match element.as_sequence() {
-                None => {
-                    return Err(Violation::with_violations(
-                        "ordered_elements",
-                        ViolationCode::TypeMismatched,
-                        format!(
-                            "expected list/sexp ion found {}",
-                            if element.is_null() {
-                                format!("{element}")
-                            } else {
-                                format!("{}", element.ion_type())
-                            }
-                        ),
-                        ion_path,
-                        violations,
-                    ));
-                }
-                Some(sequence) => sequence.elements().map(|a| a.to_owned()).collect(),
-            },
-            IonSchemaElement::Document(document) => document.to_owned(),
+        let values = match value.as_sequence() {
+            Some(sequence) => sequence,
+            None => {
+                return Err(Violation::with_violations(
+                    "ordered_elements",
+                    ViolationCode::TypeMismatched,
+                    format!(
+                        "expected list, sexp, or document; found {}",
+                        if value.is_null() {
+                            format!("{value}")
+                        } else {
+                            format!("{}", value.ion_schema_type())
+                        }
+                    ),
+                    ion_path,
+                    violations,
+                ));
+            }
         };
 
         // build nfa for validation
@@ -1116,7 +1113,7 @@ impl ConstraintValidator for FieldNamesConstraint {
 
         for (field_name, _) in ion_struct.iter() {
             ion_path.push(IonPathElement::Field(field_name.text().unwrap().to_owned()));
-            let schema_element: IonSchemaElement = (&Element::symbol(field_name)).into();
+            let schema_element: IonSchemaElement = Element::symbol(field_name).into();
 
             if let Err(violation) =
                 self.type_reference
@@ -1172,36 +1169,28 @@ impl ConstraintValidator for ContainsConstraint {
         type_store: &TypeStore,
         ion_path: &mut IonPath,
     ) -> ValidationResult {
-        // Create a peekable iterator for given sequence
-        let values: Vec<Element> = match &value {
-            IonSchemaElement::SingleElement(element) => {
-                match element.value() {
-                    Value::List(ion_sequence) | Value::SExp(ion_sequence) => {
-                        ion_sequence.elements().map(|a| a.to_owned()).collect()
+
+        let values: Vec<IonData<&Element>> = if let Some(seq) = value.as_sequence() {
+            seq.elements().map(IonData::from).collect()
+        } else if let Some(strukt) = value.as_struct() {
+            strukt.fields()
+                .map(|(k, v)| v)
+                .map(IonData::from)
+                .collect()
+        } else {
+            return Err(Violation::new(
+                "contains",
+                ViolationCode::TypeMismatched,
+                &format!(
+                    "expected list/sexp/struct/document found {}",
+                    if value.is_null() {
+                        format!("{value}")
+                    } else {
+                        format!("{}", value.ion_schema_type())
                     }
-                    Value::Struct(ion_struct) => ion_struct
-                        .fields()
-                        .map(|(name, value)| value.to_owned())
-                        .collect(),
-                    _ => {
-                        // return Violation if value is not an Ion sequence
-                        return Err(Violation::new(
-                            "contains",
-                            ViolationCode::TypeMismatched,
-                            &format!(
-                                "expected list/sexp/struct/document found {}",
-                                if element.is_null() {
-                                    format!("{element}")
-                                } else {
-                                    format!("{}", element.ion_type())
-                                }
-                            ),
-                            ion_path,
-                        ));
-                    }
-                }
-            }
-            IonSchemaElement::Document(document) => document.to_owned(),
+                ),
+                ion_path,
+            ));
         };
 
         // add all the missing values found during validation
@@ -1210,7 +1199,8 @@ impl ConstraintValidator for ContainsConstraint {
         // for each value in expected values if it does not exist in ion sequence
         // then add it to missing_values to keep track of missing values
         for expected_value in self.values.iter() {
-            if !values.contains(expected_value) {
+            let expected = expected_value.into();
+            if !values.contains(&expected) {
                 missing_values.push(expected_value);
             }
         }
@@ -1254,36 +1244,27 @@ impl ConstraintValidator for ContainerLengthConstraint {
         ion_path: &mut IonPath,
     ) -> ValidationResult {
         // get the size of given value container
-        let size = match value {
-            IonSchemaElement::SingleElement(element) => {
-                // Check for null container
-                if element.is_null() {
-                    return Err(Violation::new(
-                        "container_length",
-                        ViolationCode::TypeMismatched,
-                        format!("expected a container found {element}"),
-                        ion_path,
-                    ));
+        let size = if let Some(seq) = value.as_sequence() {
+                seq.elements().count()
+            } else if let Some(strukt) = value.as_struct() {
+            strukt.fields()
+                .map(|(k,v)|v)
+                .map(IonData::from)
+                .count()
+        } else {
+            return Err(Violation::new(
+                "container_length",
+                ViolationCode::TypeMismatched,
+                if value.is_null() {
+                    format!("expected a container found {value}")
                 }
-
-                match element.ion_type() {
-                    IonType::List | IonType::SExp => element.as_sequence().unwrap().len(),
-                    IonType::Struct => element.as_struct().unwrap().iter().count(),
-                    _ => {
-                        // return Violation if value is not an Ion container
-                        return Err(Violation::new(
-                            "container_length",
-                            ViolationCode::TypeMismatched,
-                            format!(
-                                "expected a container (a list/sexp/struct) but found {}",
-                                element.ion_type()
-                            ),
-                            ion_path,
-                        ));
-                    }
-                }
-            }
-            IonSchemaElement::Document(document) => document.len(),
+                else {
+                    format!(
+                        "expected a container (a list/sexp/struct) but found {}",
+                        value.ion_schema_type()
+                    )},
+                ion_path,
+            ))
         };
 
         // get isl length as a range
@@ -1436,58 +1417,37 @@ impl ConstraintValidator for ElementConstraint {
         let mut element_set = vec![];
 
         // get elements for given container in the form (ion_path_element, element_value)
-        let elements: Vec<(IonPathElement, &Element)> = match value {
-            IonSchemaElement::SingleElement(element) => {
+        let elements: Vec<(IonPathElement, &Element)> =
+            if let Some(seq) = value.as_sequence() {
+                seq.elements()
+                    .enumerate()
+                    .map(|(index, val)| (IonPathElement::Index(index), val))
+                    .collect()
+            } else if let Some(strukt) = value.as_struct() {
+                strukt.fields()
+                    .map(|(name, val)| (IonPathElement::Field(name.to_string()), val))
+                    .collect()
+            } else {
                 // Check for null container
-                if element.is_null() {
+                if value.is_null() {
                     return Err(Violation::new(
                         "element",
                         ViolationCode::TypeMismatched,
-                        format!("expected a container but found {element}"),
+                        format!("expected a container but found {value}"),
                         ion_path,
                     ));
                 }
-
-                // validate each element of the given value container
-                match element.ion_type() {
-                    IonType::List | IonType::SExp => element
-                        .as_sequence()
-                        .unwrap()
-                        .elements()
-                        .enumerate()
-                        .map(|(index, val)| (IonPathElement::Index(index), val))
-                        .collect(),
-                    IonType::Struct => element
-                        .as_struct()
-                        .unwrap()
-                        .iter()
-                        .map(|(field_name, val)| {
-                            (
-                                IonPathElement::Field(field_name.text().unwrap().to_owned()),
-                                val,
-                            )
-                        })
-                        .collect(),
-                    _ => {
-                        // return Violation if value is not an Ion container
-                        return Err(Violation::new(
-                            "element",
-                            ViolationCode::TypeMismatched,
-                            format!(
-                                "expected a container (a list/sexp/struct) but found {}",
-                                element.ion_type()
-                            ),
-                            ion_path,
-                        ));
-                    }
-                }
-            }
-            IonSchemaElement::Document(document) => document
-                .iter()
-                .enumerate()
-                .map(|(index, val)| (IonPathElement::Index(index), val))
-                .collect(),
-        };
+                // return Violation if value is not an Ion container
+                return Err(Violation::new(
+                    "element",
+                    ViolationCode::TypeMismatched,
+                    format!(
+                        "expected a container (a list/sexp/struct) but found {}",
+                        value.ion_schema_type()
+                    ),
+                    ion_path,
+                ));
+            };
 
         // validate element constraint
         for (ion_path_element, val) in elements {
@@ -1547,36 +1507,33 @@ impl ConstraintValidator for AnnotationsConstraint2_0 {
         type_store: &TypeStore,
         ion_path: &mut IonPath,
     ) -> ValidationResult {
-        match value {
-            IonSchemaElement::SingleElement(element) => {
-                let schema_element: IonSchemaElement = (&element
-                    .annotations()
-                    .iter()
-                    .map(Element::symbol)
-                    .collect::<Vec<_>>())
-                    .into();
+        if let Some(element) = value.as_element() {
+            let annotations: Vec<Element> = element.annotations()
+                .iter()
+                .map(Element::symbol)
+                .collect();
+            let annotations_element: Element = ion_rs::Value::List(annotations.into()).into();
+            let annotations_ion_schema_element = IonSchemaElement::from(annotations_element);
 
-                self.type_ref
-                    .validate(&schema_element, type_store, ion_path)
-                    .map_err(|v| {
-                        Violation::with_violations(
-                            "annotations",
-                            ViolationCode::AnnotationMismatched,
-                            "one or more annotations don't satisfy annotations constraint",
-                            ion_path,
-                            vec![v],
-                        )
-                    })
-            }
-            IonSchemaElement::Document(document) => {
-                // document type can not have annotations
-                Err(Violation::new(
-                    "annotations",
-                    ViolationCode::AnnotationMismatched,
-                    "annotations constraint is not applicable for document type",
-                    ion_path,
-                ))
-            }
+            self.type_ref
+                .validate(&annotations_ion_schema_element, type_store, ion_path)
+                .map_err(|v| {
+                    Violation::with_violations(
+                        "annotations",
+                        ViolationCode::AnnotationMismatched,
+                        "one or more annotations don't satisfy annotations constraint",
+                        ion_path,
+                        vec![v],
+                    )
+                })
+        } else {
+            // document type can not have annotations
+            Err(Violation::new(
+                "annotations",
+                ViolationCode::AnnotationMismatched,
+                "annotations constraint is not applicable for document type",
+                ion_path,
+            ))
         }
     }
 }
@@ -1748,26 +1705,23 @@ impl ConstraintValidator for AnnotationsConstraint {
     ) -> ValidationResult {
         let violations: Vec<Violation> = vec![];
 
-        match value {
-            IonSchemaElement::SingleElement(element) => {
-                // validate annotations that have list-level `ordered` annotation
-                if self.is_ordered {
-                    return self
-                        .validate_ordered_annotations(element, type_store, violations, ion_path);
-                }
+        if let Some(element) = value.as_element() {
+            // validate annotations that have list-level `ordered` annotation
+            if self.is_ordered {
+                return self
+                    .validate_ordered_annotations(element, type_store, violations, ion_path);
+            }
 
-                // validate annotations that does not have list-level `ordered` annotation
-                self.validate_unordered_annotations(element, type_store, violations, ion_path)
-            }
-            IonSchemaElement::Document(document) => {
-                // document type can not have annotations
-                Err(Violation::new(
-                    "annotations",
-                    ViolationCode::AnnotationMismatched,
-                    "annotations constraint is not applicable for document type",
-                    ion_path,
-                ))
-            }
+            // validate annotations that does not have list-level `ordered` annotation
+            self.validate_unordered_annotations(element, type_store, violations, ion_path)
+        } else {
+            // document type can not have annotations
+            Err(Violation::new(
+                "annotations",
+                ViolationCode::AnnotationMismatched,
+                "annotations constraint is not applicable for document type",
+                ion_path,
+            ))
         }
     }
 }
@@ -1951,7 +1905,7 @@ impl ConstraintValidator for TimestampPrecisionConstraint {
 
         // get isl timestamp precision as a range
         let precision_range: &TimestampPrecisionRange = self.timestamp_precision();
-        let precision = &TimestampPrecision::from_timestamp(timestamp_value);
+        let precision = &TimestampPrecision::from_timestamp(&timestamp_value);
         // return a Violation if the value didn't follow timestamp precision constraint
         if !precision_range.contains(precision) {
             return Err(Violation::new(
@@ -2000,8 +1954,8 @@ impl ConstraintValidator for ValidValuesConstraint {
         type_store: &TypeStore,
         ion_path: &mut IonPath,
     ) -> ValidationResult {
-        match value {
-            IonSchemaElement::SingleElement(element) => {
+        match value.as_element() {
+            Some(element) => {
                 for valid_value in &self.valid_values {
                     let does_match = match valid_value {
                         ValidValue::Element(valid_value) => {
@@ -2034,7 +1988,7 @@ impl ConstraintValidator for ValidValuesConstraint {
                     ion_path,
                 ))
             }
-            IonSchemaElement::Document(document) => Err(Violation::new(
+            _ => Err(Violation::new(
                 "valid_values",
                 ViolationCode::InvalidValue,
                 format!(

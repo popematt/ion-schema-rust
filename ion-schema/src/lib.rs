@@ -1,19 +1,18 @@
 // TODO: remove the following line once we have a basic implementation ready
 #![allow(dead_code, unused_variables)]
 
-use crate::external::ion_rs::IonType;
 use crate::ion_path::IonPath;
 use crate::isl::isl_constraint::IslConstraintValue;
 use crate::isl::isl_type::IslType;
-use crate::isl::WriteToIsl;
 use crate::result::{invalid_schema_error, invalid_schema_error_raw, IonSchemaResult};
 use crate::violation::{Violation, ViolationCode};
-use ion_rs::element::{Element, Struct};
-use ion_rs::{IonWriter, Symbol};
+use ion_rs::{Element, Struct, Symbol, Sequence, IonType, WriteAsIon, ValueWriter, IonResult, StructWriter};
 use regex::Regex;
 use std::fmt::{Display, Formatter};
+use std::io::Write;
 use std::sync::OnceLock;
-/// A [`try`]-like macro to workaround the [`Option`]/[`Result`] nested APIs.
+
+/// A `try`-like macro to work around the [`Option`]/[`Result`] nested APIs.
 /// These API require checking the type and then calling the appropriate getter function
 /// (which returns a None if you got it wrong). This macro turns the `None` into
 /// an `IonSchemaError` which cannot be currently done with `?`.
@@ -94,41 +93,144 @@ const ISL_2_0_KEYWORDS: [&str; 28] = [
     "valid_values",
 ];
 
+#[derive(Debug, Clone, PartialEq)]
+enum IonSchemaElementKind<'a> {
+    SingleElement(Element),
+    Document(Sequence),
+    SingleElementRef(&'a Element),
+    DocumentRef(&'a Sequence),
+}
+
+#[derive(Debug, Clone, PartialEq, Copy)]
+enum IonSchemaElementType {
+    Null,
+    Bool,
+    Int,
+    Float,
+    Decimal,
+    Timestamp,
+    Symbol,
+    String,
+    Clob,
+    Blob,
+    List,
+    SExp,
+    Struct,
+    Document,
+}
+
+impl Display for IonSchemaElementType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let text = match self {
+            IonSchemaElementType::Null => "null",
+            IonSchemaElementType::Bool => "bool",
+            IonSchemaElementType::Int => "int",
+            IonSchemaElementType::Float => "float",
+            IonSchemaElementType::Decimal => "decimal",
+            IonSchemaElementType::Timestamp => "timestamp",
+            IonSchemaElementType::Symbol => "symbol",
+            IonSchemaElementType::String => "string",
+            IonSchemaElementType::Clob => "clob",
+            IonSchemaElementType::Blob => "blob",
+            IonSchemaElementType::List => "list",
+            IonSchemaElementType::SExp => "sexp",
+            IonSchemaElementType::Struct => "struct",
+            IonSchemaElementType::Document => "document",
+        };
+        f.write_str(text)
+    }
+}
+
+impl From<IonType> for IonSchemaElementType {
+    fn from(value: IonType) -> Self {
+        match value {
+            IonType::Null => IonSchemaElementType::Null,
+            IonType::Bool => IonSchemaElementType::Bool,
+            IonType::Int => IonSchemaElementType::Int,
+            IonType::Float => IonSchemaElementType::Float,
+            IonType::Decimal => IonSchemaElementType::Decimal,
+            IonType::Timestamp => IonSchemaElementType::Timestamp,
+            IonType::Symbol => IonSchemaElementType::Symbol,
+            IonType::String => IonSchemaElementType::String,
+            IonType::Clob => IonSchemaElementType::Clob,
+            IonType::Blob => IonSchemaElementType::Blob,
+            IonType::List => IonSchemaElementType::List,
+            IonType::SExp => IonSchemaElementType::SExp,
+            IonType::Struct => IonSchemaElementType::Struct,
+        }
+    }
+}
+
 /// Provide an Ion schema Element which includes all Elements and a document type
+///
+/// An [IonSchemaElement] can be constructed from [&Element] or [Element] to represent a single
+/// Ion value, or from [Sequence] and [&Sequence] to represent a document.
 ///
 /// ## Example:
 /// In general `TypeRef` `validate()` takes in IonSchemaElement as the value to be validated.
 /// In order to create an `IonSchemaElement`:
 ///
 /// ```
-/// use ion_rs::element::Element;
+/// use ion_rs::Element;
 /// use ion_schema::IonSchemaElement;
 ///
 /// // create an IonSchemaElement from an Element
 /// let owned_element: Element = 4.into();
-/// let ion_schema_element: IonSchemaElement = (&owned_element).into();
+/// let ion_schema_element: IonSchemaElement = owned_element.into();
 ///
 /// // create an IonSchemaElement for document type based on vector of owned elements
-/// let document: IonSchemaElement = IonSchemaElement::Document(vec![owned_element]);
+/// let document: IonSchemaElement = vec![owned_element].into();
 /// ```
 #[derive(Debug, Clone, PartialEq)]
-pub enum IonSchemaElement {
-    SingleElement(Element),
-    Document(Vec<Element>),
+pub struct IonSchemaElement<'a> {
+    content: IonSchemaElementKind<'a>
 }
 
-impl IonSchemaElement {
-    pub fn as_element(&self) -> Option<&Element> {
-        match self {
-            IonSchemaElement::SingleElement(element) => Some(element),
-            IonSchemaElement::Document(_) => None,
+impl <'a> IonSchemaElement<'a> where Self: 'a {
+    pub fn as_sequence(&'a self) -> Option<&'a Sequence> {
+        match &self.content {
+            IonSchemaElementKind::SingleElement(e) => e.as_sequence(),
+            IonSchemaElementKind::Document(seq) => Some(seq),
+            IonSchemaElementKind::SingleElementRef(e) => e.as_sequence(),
+            IonSchemaElementKind::DocumentRef(seq) => Some(seq),
         }
     }
 
-    pub fn as_document(&self) -> Option<&Vec<Element>> {
-        match self {
-            IonSchemaElement::SingleElement(_) => None,
-            IonSchemaElement::Document(document) => Some(document),
+    pub fn as_struct(&'a self) -> Option<&'a Struct> {
+        match &self.content {
+            IonSchemaElementKind::SingleElement(e) => e.as_struct(),
+            IonSchemaElementKind::SingleElementRef(e) => e.as_struct(),
+            _ => None
+        }
+    }
+
+    pub fn as_element(&'a self) -> Option<&'a Element> {
+        match &self.content {
+            IonSchemaElementKind::SingleElement(element) => Some(element),
+            IonSchemaElementKind::SingleElementRef(element) => Some(element),
+            _ => None,
+        }
+    }
+
+    pub fn as_document(&'a self) -> Option<&'a Sequence> {
+        match &self.content {
+            IonSchemaElementKind::Document(seq) => Some(seq),
+            IonSchemaElementKind::DocumentRef(seq) => Some(seq),
+            _ => None,
+        }
+    }
+
+    pub fn ion_schema_type(&self) -> IonSchemaElementType {
+        match self.as_element() {
+            Some(e) => e.ion_type().into(),
+            _ => IonSchemaElementType::Document,
+        }
+    }
+
+    pub fn is_null(&self) -> bool {
+        match self.as_element() {
+            Some(e) => e.is_null(),
+            _ => false
         }
     }
 
@@ -138,8 +240,8 @@ impl IonSchemaElement {
         constraint_name: &str,
         ion_path: &mut IonPath,
     ) -> Result<&Element, Violation> {
-        match self {
-            IonSchemaElement::SingleElement(element) => {
+        match self.as_element() {
+            Some(element) => {
                 if !types.contains(&element.ion_type()) || element.is_null() {
                     // If it's an Element but the type isn't one of `types`,
                     // return a Violation with the constraint name.
@@ -153,7 +255,7 @@ impl IonSchemaElement {
                 // If it's an Element of an expected type, return a ref to it.
                 Ok(element)
             }
-            IonSchemaElement::Document(_) => {
+            None => {
                 // If it's a Document, return a Violation with the constraint name
                 Err(Violation::new(
                     constraint_name,
@@ -166,15 +268,25 @@ impl IonSchemaElement {
     }
 }
 
-impl Display for IonSchemaElement {
+impl <'a> Display for IonSchemaElement<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
-        match self {
-            IonSchemaElement::SingleElement(element) => {
+        match &self.content {
+            IonSchemaElementKind::SingleElement(element)  => {
                 write!(f, "{element}")
             }
-            IonSchemaElement::Document(document) => {
+            IonSchemaElementKind::SingleElementRef(element) => {
+                write!(f, "{element}")
+            }
+            IonSchemaElementKind::Document(document) => {
                 write!(f, "/* Ion document */ ")?;
-                for value in document {
+                for value in document.iter() {
+                    write!(f, "{value} ")?;
+                }
+                write!(f, "/* end */")
+            }
+                IonSchemaElementKind::DocumentRef(document) => {
+                write!(f, "/* Ion document */ ")?;
+                for value in document.iter() {
                     write!(f, "{value} ")?;
                 }
                 write!(f, "/* end */")
@@ -183,39 +295,51 @@ impl Display for IonSchemaElement {
     }
 }
 
-impl From<&Element> for IonSchemaElement {
-    fn from(value: &Element) -> Self {
+impl <'a> From<Element> for IonSchemaElement<'a> {
+    fn from(value: Element) -> Self {
         if value.annotations().contains("document") {
-            let sequence = match value.ion_type() {
-                IonType::String => load(value.as_string().unwrap()),
-                IonType::List | IonType::SExp => {
-                    let ion_elements: Vec<Element> = value
-                        .as_sequence()
-                        .unwrap()
-                        .elements()
-                        .map(|oe| oe.to_owned())
-                        .collect();
-                    ion_elements
-                }
-                _ => {
-                    panic!("invalid document")
-                }
-            };
-            return IonSchemaElement::Document(sequence);
+            todo!();
         }
-        IonSchemaElement::SingleElement(value.to_owned())
+        IonSchemaElement { content: IonSchemaElementKind::SingleElement(value) }
     }
 }
 
-impl From<&Vec<Element>> for IonSchemaElement {
-    fn from(value: &Vec<Element>) -> Self {
-        IonSchemaElement::Document(value.to_owned())
+impl <'a> From<&'a Element> for IonSchemaElement<'a> {
+    fn from(value: &'a Element) -> Self {
+        if value.annotations().contains("document") {
+            todo!();
+        }
+        IonSchemaElement { content: IonSchemaElementKind::SingleElementRef(value) }
+    }
+}
+
+impl <'a> From<Sequence> for IonSchemaElement<'a> {
+    fn from(value: Sequence) -> Self {
+        IonSchemaElement { content: IonSchemaElementKind::Document(value) }
+    }
+}
+
+impl <'a> From<&'a Sequence> for IonSchemaElement<'a> {
+    fn from(value: &'a Sequence) -> Self {
+        IonSchemaElement { content: IonSchemaElementKind::DocumentRef(value) }
+    }
+}
+
+impl <'a> From<Vec<Element>> for IonSchemaElement<'a> {
+    fn from(value: Vec<Element>) -> Self {
+        IonSchemaElement { content: IonSchemaElementKind::Document(value.into()) }
+    }
+}
+
+impl <'a> From<&'a IonSchemaElement<'a>> for IonSchemaElement<'a> {
+    fn from(value: &'a IonSchemaElement<'a>) -> Self {
+        todo!()
     }
 }
 
 // helper function to be used by schema tests
 fn load(text: &str) -> Vec<Element> {
-    Element::read_all(text.as_bytes()).expect("parsing failed unexpectedly")
+    Element::read_all(text.as_bytes()).expect("parsing failed unexpectedly").into_iter().collect()
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -226,6 +350,11 @@ pub struct UserReservedFields {
 }
 
 impl UserReservedFields {
+
+    pub(crate) fn is_empty(&self) -> bool {
+        self.type_fields.is_empty() && self.schema_header_fields.is_empty() && self.schema_footer_fields.is_empty()
+    }
+
     /// Parse use reserved fields inside a [Struct]
     pub(crate) fn from_ion_elements(user_reserved_fields: &Struct) -> IonSchemaResult<Self> {
         if user_reserved_fields.fields().any(|(f, v)| {
@@ -359,38 +488,12 @@ impl UserReservedFields {
     }
 }
 
-impl WriteToIsl for UserReservedFields {
-    fn write_to<W: IonWriter>(&self, writer: &mut W) -> IonSchemaResult<()> {
-        // this function assumes that we are already inside a schema header struct
-        // writes `user_reserved_fields` in the schema header
-        writer.set_field_name("user_reserved_fields");
-        writer.step_in(IonType::Struct)?;
-
-        // writes user reserved fields for `schema_header`
-        writer.set_field_name("schema_header");
-        writer.step_in(IonType::List)?;
-        for value in &self.schema_header_fields {
-            writer.write_symbol(value)?;
-        }
-        writer.step_out()?;
-
-        // writes user reserved fields for `type`
-        writer.set_field_name("type");
-        writer.step_in(IonType::List)?;
-        for value in &self.type_fields {
-            writer.write_symbol(value)?;
-        }
-        writer.step_out()?;
-
-        // writes user reserved fields for `schema_footer`
-        writer.set_field_name("schema_footer");
-        writer.step_in(IonType::List)?;
-        for value in &self.schema_footer_fields {
-            writer.write_symbol(value)?;
-        }
-        writer.step_out()?;
-
-        writer.step_out()?;
-        Ok(())
+impl WriteAsIon for UserReservedFields {
+    fn write_as_ion<V: ValueWriter>(&self, writer: V) -> IonResult<()> {
+        let mut struct_writer = writer.struct_writer()?;
+        struct_writer.field_writer("schema_header").write(&self.schema_header_fields)?;
+        struct_writer.field_writer("type").write(&self.type_fields)?;
+        struct_writer.field_writer("schema_footer").write(&self.schema_footer_fields)?;
+        struct_writer.close()
     }
 }

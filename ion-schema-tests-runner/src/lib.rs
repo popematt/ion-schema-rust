@@ -105,3 +105,7 @@ pub fn ion_schema_tests(item: _TokenStream) -> _TokenStream {
 
     generate_ion_schema_tests(root_dir.as_path(), exclude_filter).into()
 }
+
+#[test]
+fn foo() {}
+
