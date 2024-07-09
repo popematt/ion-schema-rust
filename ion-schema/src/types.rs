@@ -61,11 +61,12 @@ impl TypeDefinition {
     /// use ion_schema::result::IonSchemaResult;
     /// use std::path::Path;
     /// use ion_schema::authority::MapDocumentAuthority;
+    /// use ion_schema::ToDocument;
     ///
     /// fn main() -> IonSchemaResult<()> {
     ///     // create an IonSchemaElement from an Element
     ///     let owned_element: Element = 4.into();
-    ///     let document: Vec<Element> = vec![4.into(), "hello".to_string().into(), true.into()];
+    ///     let elements: Vec<Element> = vec![4.into(), "hello".to_string().into(), true.into()];
     ///
     ///     let map_authority = [
     ///         (
@@ -93,11 +94,11 @@ impl TypeDefinition {
     ///     let type_ref = schema.get_type("my_int").unwrap();
     ///
     ///     assert!(type_ref.validate(&owned_element).is_ok()); // 4 is valid for `my_int`
-    ///     assert!(type_ref.validate(&document).is_err()); // document type is invalid for `my_int` type
+    ///     assert!(type_ref.validate(elements.to_document()).is_err()); // document type is invalid for `my_int` type
     ///     Ok(())
     /// }
     /// ```
-    pub fn validate<I: Into<IonSchemaElement>>(&self, value: I) -> ValidationResult {
+    pub fn validate<'a, I: Into<IonSchemaElement<'a>>>(&self, value: I) -> ValidationResult {
         let type_def = self.type_store.get_type_by_id(self.id).unwrap();
 
         // convert given IonSchemaElement to an Element
@@ -110,6 +111,7 @@ impl TypeDefinition {
 /// Represents a [`BuiltInTypeDefinition`] which stores a resolved builtin ISl type using [`TypeStore`]
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum BuiltInTypeDefinition {
+    // TODO: Switch this to use IonSchemaElementType
     Atomic(IonType, Nullability),
     Derived(TypeDefinitionImpl),
 }
