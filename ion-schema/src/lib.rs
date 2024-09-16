@@ -99,6 +99,7 @@ enum IonSchemaElementKind<'a> {
     Document(Sequence),
     SingleElementRef(&'a Element),
     DocumentRef(&'a Sequence),
+    // DocumentIteratorRef(&'a impl IntoIterator<Item=Element>),
 }
 
 #[derive(Debug, Clone, PartialEq, Copy)]
@@ -174,12 +175,17 @@ impl From<IonType> for IonSchemaElementType {
 /// use ion_rs::Element;
 /// use ion_schema::IonSchemaElement;
 ///
-/// // create an IonSchemaElement from an Element
-/// let owned_element: Element = 4.into();
-/// let ion_schema_element: IonSchemaElement = owned_element.into();
+/// // create an IonSchemaElement from an Element by borrowing it
+/// let element0: Element = 0.into();
+/// let ion_schema_element: IonSchemaElement = (&element0).into();
 ///
-/// // create an IonSchemaElement for document type based on vector of owned elements
-/// let document: IonSchemaElement = vec![owned_element].into();
+/// // create an IonSchemaElement from an Element by taking ownership of it
+/// let element1: Element = 1.into();
+/// let ion_schema_element: IonSchemaElement = element1.into();
+///
+/// // create an IonSchemaElement for document type based on vector of elements
+/// let elements1: Vec<Element> = vec![2.into()];
+/// let document: IonSchemaElement = elements1.into();
 /// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct IonSchemaElement<'a> {

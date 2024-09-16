@@ -814,7 +814,7 @@ impl OrderedElementsConstraint {
     //   * `min == 0`, that state will have a transition that advances to the next state automatically, making an occurrence of that `type_id` optional.
     //
     // Here is an example of how the built NFA would look like for an `ordered_elements` constraint:
-    // ```
+    // ```ion
     // ordered_elements: [
     //     { type: int, occurs: optional },
     //     number,

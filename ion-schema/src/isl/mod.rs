@@ -71,7 +71,8 @@
 //!
 //!  ## Example of serializing a programmatically constructed schema into a schema file:
 //! ```
-//! use ion_rs::{Writer, WriteConfig, TextFormat};
+//! use ion_rs::{Writer, WriteConfig, TextFormat, SequenceWriter};
+//! use ion_rs::v1_0::Text;
 //! use ion_schema::isl::{isl_type::v_1_0::*, isl_constraint::v_1_0::*, isl_type_reference::v_1_0::*, IslSchema};
 //! use ion_schema::schema::Schema;
 //! use ion_schema::system::SchemaSystem;
@@ -104,10 +105,10 @@
 //!
 //! // initiate an Ion pretty text writer
 //! let mut buffer = Vec::new();
-//! let mut writer = TextFormat::pretty().build(&mut buffer).unwrap();
+//! let mut writer = Writer::new(Text, buffer).unwrap();
 //!
 //! // write the previously constructed ISL model into a schema file using `write_to`
-//! let write_schema_result = isl_schema.write_to(&mut writer);
+//! let write_schema_result = writer.write_all(&isl_schema);
 //! assert!(write_schema_result.is_ok());
 //!
 //! // The above written schema file looks like following:
@@ -141,12 +142,14 @@ use crate::isl::isl_import::{IslImport, IslImportType};
 use crate::isl::isl_type::IslType;
 use crate::result::IonSchemaResult;
 use crate::UserReservedFields;
-use ion_rs::{ElementWriter, Encoding, IntoAnnotatedElement, IonResult, SequenceWriter, StructWriter, ValueWriter, WriteAsIon, Writer};
+use ion_rs::{ElementWriter, Encoding, IntoAnnotatedElement, IonResult, Reader, SequenceWriter, StructWriter, ValueWriter, WriteAsIon, WriteConfig, Writer};
 use ion_rs::Annotatable;
 use ion_rs::Element;
 use ion_rs::{IonType};
 use std::fmt::{Display, Formatter};
 use std::io::Write;
+use std::ptr::write;
+use ion_rs::v1_0::Text;
 
 pub mod isl_constraint;
 pub mod isl_import;
@@ -188,7 +191,7 @@ impl Display for IslVersion {
 
 /// Models the content that could be in a Schema document.
 #[derive(Debug, Clone, PartialEq)]
-enum SchemaContent {
+pub enum SchemaContent {
     Version(IslVersion),
     Header(SchemaHeader),
     Type(IslType),
@@ -495,6 +498,32 @@ impl IslSchema {
             writer.write(item)?;
         }
         Ok(())
+    }
+}
+
+
+impl <'a> IntoIterator for &'a IslSchema {
+    type Item = &'a SchemaContent;
+    type IntoIter = SchemaIterator<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        SchemaIterator { content: &self.schema_content, i: 0 }
+    }
+}
+
+
+pub struct SchemaIterator<'a> {
+    content: &'a Vec<SchemaContent>,
+    i: usize,
+}
+
+impl <'a> Iterator for SchemaIterator<'a> {
+    type Item = &'a SchemaContent;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let next_item = self.content.get(self.i);
+        self.i += 1;
+        next_item
     }
 }
 

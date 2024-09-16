@@ -53,7 +53,7 @@ impl TypeDefinition {
     }
 
     /// Provides the validation for the given value based on this schema type
-    /// ```
+    /// ```broken
     /// use ion_rs::Element;
     /// use ion_schema::IonSchemaElement;
     /// use ion_schema::authority::{FileSystemDocumentAuthority, DocumentAuthority};
@@ -383,7 +383,7 @@ pub(crate) struct TypeDefinitionImpl {
     constraints: Vec<Constraint>,
     // `is_deferred_type_def` indicates if this is a deferred type def which will be resolved later
     // e.g.
-    // ```
+    // ```ion
     // type:: {
     //  name: foo,
     //  type: bar,
