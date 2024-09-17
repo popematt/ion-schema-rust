@@ -10,7 +10,6 @@ use ion_rs::{Element, Struct, Symbol, Sequence, IonType, WriteAsIon, ValueWriter
 use regex::Regex;
 use std::fmt::{Display, Formatter};
 use std::sync::OnceLock;
-use crate::types::TypeDefinition;
 
 /// A `try`-like macro to work around the [`Option`]/[`Result`] nested APIs.
 /// These API require checking the type and then calling the appropriate getter function
