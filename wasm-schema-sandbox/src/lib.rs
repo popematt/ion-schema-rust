@@ -7,7 +7,7 @@ use ion_schema::schema::Schema;
 use ion_schema::system::SchemaSystem;
 use ion_schema::types::TypeDefinition;
 use ion_schema::violation::Violation;
-use ion_schema::IonSchemaElement;
+use ion_schema::AsDocument;
 use js_sys::Array;
 use serde::{Deserialize, Serialize};
 use serde_wasm_bindgen::to_value;
@@ -189,7 +189,7 @@ pub fn validate(
     };
 
     let result = if is_document {
-        type_ref.validate(&value)
+        type_ref.validate(value.as_document())
     } else {
         if value.len() != 1 {
             return SchemaValidationResult::new(
@@ -225,7 +225,7 @@ pub fn validate(
     let result: SchemaValidationResult = SchemaValidationResult::new(
         result.is_ok(),
         violations_result,
-        format!("{ion}"),
+        ion.to_string(),
         false,
         "".to_string(),
     );

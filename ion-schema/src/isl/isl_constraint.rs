@@ -8,12 +8,11 @@ use crate::isl::util::{
 use crate::isl::IslVersion;
 use crate::result::{invalid_schema_error, invalid_schema_error_raw, IonSchemaResult};
 use crate::{isl, isl_require};
-use ion_rs::{ElementWriter, Encoding, IonResult, SequenceWriter, StructWriter, ValueWriter, WriteAsIon, Writer};
+use ion_rs::{IonResult, SequenceWriter, StructWriter, ValueWriter, WriteAsIon};
 use ion_rs::{Element, Value};
 use ion_rs::{IonType, Symbol};
 use std::collections::HashMap;
 use std::convert::TryInto;
-use std::io::Write;
 
 /// Provides public facing APIs for constructing ISL constraints programmatically for ISL 1.0
 pub mod v_1_0 {
@@ -728,7 +727,7 @@ impl IslConstraintValue {
                         "ordered_elements constraint was a null instead of a list",
                     );
                 }
-                isl_require!(value.annotations().len() == 0 => "ordered_elements list may not be annotated")?;
+                isl_require!(value.annotations().is_empty() => "ordered_elements list may not be annotated")?;
                 if value.ion_type() != IonType::List {
                     return invalid_schema_error(format!(
                         "ordered_elements constraint was a {:?} instead of a list",
@@ -993,7 +992,7 @@ impl IslConstraintValue {
 }
 
 impl WriteAsIon for IslConstraintValue {
-    fn write_as_ion<V: ValueWriter>(&self, mut writer: V) -> IonResult<()> {
+    fn write_as_ion<V: ValueWriter>(&self, writer: V) -> IonResult<()> {
         match self {
             IslConstraintValue::AllOf(type_refs) => writer.write(type_refs),
             IslConstraintValue::Annotations(annotations) => writer.write(annotations),

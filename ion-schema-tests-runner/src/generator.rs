@@ -325,14 +325,11 @@ fn generate_preamble(root_dir_path: &Path) -> TokenStream {
             let isl_type = schema.get_type(type_id).expect(&format!("Expected to get type: {}", type_id));
             let value: ion_rs::Element = ion_rs::Element::read_one(value_ion.as_bytes()).expect(&format!("Expected to be able to read value: {}", value_ion));
             let prepared_value: ion_schema::IonSchemaElement = if value.annotations().contains("document") && value.ion_type() == ion_rs::IonType::SExp {
-                let element_vec = value.as_sequence()
-                    .expect("We already confirmed that this is a s-expression.")
-                    .elements()
-                    .map(|it| it.to_owned())
-                    .collect::<Vec<_>>();
-                ion_schema::IonSchemaElement::from(element_vec)
+                let values = value.as_sequence()
+                    .expect("We already confirmed that this is a s-expression.");
+                ion_schema::IonSchemaElement::from(ion_schema::AsDocument::as_document(values))
             } else {
-                ion_schema::IonSchemaElement::from(value)
+                ion_schema::IonSchemaElement::from(&value)
             };
             let validation_result = isl_type.validate(prepared_value);
             if validation_result.is_ok() == expect_valid {

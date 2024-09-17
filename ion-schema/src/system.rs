@@ -1277,7 +1277,7 @@ mod schema_system_tests {
     use crate::isl::isl_type_reference;
     use crate::system::IonSchemaError::InvalidSchemaError;
     use std::path::Path;
-    use ion_rs::Sequence;
+    
 
     #[test]
     fn schema_system_add_authorities_test() {

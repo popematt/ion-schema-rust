@@ -3,7 +3,6 @@ extern crate clap;
 use clap::{App, ArgMatches};
 use ion_rs::{Element, SequenceWriter, StructWriter, TextFormat, ValueWriter, Writer};
 use ion_rs::WriteConfig;
-use ion_rs::{IonType};
 use ion_schema::authority::{DocumentAuthority, FileSystemDocumentAuthority};
 use ion_schema::result::IonSchemaResult;
 use ion_schema::system::SchemaSystem;
@@ -86,7 +85,7 @@ fn validate(command_args: &ArgMatches) -> IonSchemaResult<()> {
     let type_ref = schema.unwrap().get_type(schema_type).unwrap();
 
     // create a text writer to make the output
-    let mut output = vec![];
+    let output = vec![];
     let write_config = WriteConfig::<ion_rs::v1_0::Text>::new(TextFormat::Pretty);
     let mut writer = Writer::new(write_config, output)?;
 

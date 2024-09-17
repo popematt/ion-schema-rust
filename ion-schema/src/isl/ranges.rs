@@ -16,16 +16,15 @@
 // `num_traits` crate. See https://github.com/rust-num/num-traits/issues/274.
 
 use std::cmp::Ordering;
-use crate::isl::ranges::base::{Range, RangeValidation};
+use crate::isl::ranges::base::RangeValidation;
 use crate::isl::util::TimestampPrecision;
 use crate::{invalid_schema_error, invalid_schema_error_raw, isl_require};
 use crate::{IonSchemaResult};
-use ion_rs::{Element, Encoding, IonResult, ValueWriter, WriteAsIon};
+use ion_rs::{Element, IonResult, ValueWriter, WriteAsIon};
 use ion_rs::Decimal;
-use ion_rs::{IonType, Writer, Timestamp};
+use ion_rs::{IonType, Timestamp};
 use num_traits::{CheckedAdd, One};
 use std::fmt::{Display, Formatter};
-use std::io::Write;
 
 /// An end (upper or lower) of a [`Range`].
 #[derive(Debug, PartialEq, Clone)]

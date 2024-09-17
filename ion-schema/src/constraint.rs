@@ -936,7 +936,7 @@ impl ConstraintValidator for OrderedElementsConstraint {
         }
 
         // use nfa_evaluation for validation
-        nfa_evaluation.validate_ordered_elements(&values, type_store);
+        nfa_evaluation.validate_ordered_elements(values, type_store);
 
         if !nfa_evaluation.has_final_state(type_store) {
             return Err(Violation::with_violations(
@@ -1039,7 +1039,7 @@ impl ConstraintValidator for FieldsConstraint {
                 violations.push(Violation::new(
                     "fields",
                     ViolationCode::TypeMismatched,
-                    &format!(
+                    format!(
                         "Expected {} of field {}: found {}",
                         occurs_range,
                         field_name,
@@ -1113,7 +1113,8 @@ impl ConstraintValidator for FieldNamesConstraint {
 
         for (field_name, _) in ion_struct.iter() {
             ion_path.push(IonPathElement::Field(field_name.text().unwrap().to_owned()));
-            let schema_element: IonSchemaElement = Element::symbol(field_name).into();
+            let field_name_symbol_as_element = Element::symbol(field_name);
+            let schema_element: IonSchemaElement = (&field_name_symbol_as_element).into();
 
             if let Err(violation) =
                 self.type_reference
@@ -1181,7 +1182,7 @@ impl ConstraintValidator for ContainsConstraint {
             return Err(Violation::new(
                 "contains",
                 ViolationCode::TypeMismatched,
-                &format!(
+                format!(
                     "expected list/sexp/struct/document found {}",
                     if value.is_null() {
                         format!("{value}")
@@ -1513,7 +1514,7 @@ impl ConstraintValidator for AnnotationsConstraint2_0 {
                 .map(Element::symbol)
                 .collect();
             let annotations_element: Element = ion_rs::Value::List(annotations.into()).into();
-            let annotations_ion_schema_element = IonSchemaElement::from(annotations_element);
+            let annotations_ion_schema_element = IonSchemaElement::from(&annotations_element);
 
             self.type_ref
                 .validate(&annotations_ion_schema_element, type_store, ion_path)

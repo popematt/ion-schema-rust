@@ -53,19 +53,20 @@ impl TypeDefinition {
     }
 
     /// Provides the validation for the given value based on this schema type
-    /// ```broken
+    /// ```
     /// use ion_rs::Element;
     /// use ion_schema::IonSchemaElement;
     /// use ion_schema::authority::{FileSystemDocumentAuthority, DocumentAuthority};
     /// use ion_schema::system::SchemaSystem;
     /// use ion_schema::result::IonSchemaResult;
     /// use std::path::Path;
+    /// use ion_schema::authority::MapDocumentAuthority;
+    /// use ion_schema::ToDocument;
     ///
     /// fn main() -> IonSchemaResult<()> {
     ///     // create an IonSchemaElement from an Element
-    ///     use ion_schema::authority::MapDocumentAuthority;
     ///     let owned_element: Element = 4.into();
-    ///     let document: Vec<Element> = vec![4.into(), "hello".to_string().into(), true.into()];
+    ///     let elements: Vec<Element> = vec![4.into(), "hello".to_string().into(), true.into()];
     ///
     ///     let map_authority = [
     ///         (
@@ -93,7 +94,7 @@ impl TypeDefinition {
     ///     let type_ref = schema.get_type("my_int").unwrap();
     ///
     ///     assert!(type_ref.validate(&owned_element).is_ok()); // 4 is valid for `my_int`
-    ///     assert!(type_ref.validate(&document).is_err()); // document type is invalid for `my_int` type
+    ///     assert!(type_ref.validate(elements.to_document()).is_err()); // document type is invalid for `my_int` type
     ///     Ok(())
     /// }
     /// ```

@@ -1,9 +1,8 @@
-use std::io::Write;
 use crate::isl::isl_constraint::{IslConstraint, IslConstraintValue};
 use crate::isl::isl_import::IslImportType;
 use crate::isl::IslVersion;
 use crate::result::{invalid_schema_error, invalid_schema_error_raw, IonSchemaResult};
-use ion_rs::{Element, Encoding, IonResult, SequenceWriter, StructWriter, ValueWriter, WriteAsIon};
+use ion_rs::{Element, IonResult, StructWriter, ValueWriter, WriteAsIon};
 
 /// Provides public facing APIs for constructing ISL types programmatically for ISL 1.0
 pub mod v_1_0 {

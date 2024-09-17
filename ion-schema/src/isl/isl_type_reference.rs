@@ -1,4 +1,3 @@
-use std::io::Write;
 use crate::ion_extension::ElementExtensions;
 use crate::isl::isl_import::{IslImport, IslImportType};
 use crate::isl::isl_type::IslType;
@@ -11,7 +10,7 @@ use crate::result::{
 use crate::system::{PendingTypes, TypeId, TypeStore};
 use crate::type_reference::{TypeReference, VariablyOccurringTypeRef};
 use crate::types::TypeDefinitionImpl;
-use ion_rs::{Element, Encoding, IonResult, StructWriter, Value, ValueWriter, WriteAsIon, Writer};
+use ion_rs::{Element, IonResult, StructWriter, Value, ValueWriter, WriteAsIon};
 use ion_rs::{IonType};
 
 /// Provides public facing APIs for constructing ISL type references programmatically for ISL 1.0
@@ -331,7 +330,7 @@ impl IslTypeRef {
 }
 
 impl WriteAsIon for IslTypeRef {
-    fn write_as_ion<V: ValueWriter>(&self, mut writer: V) -> IonResult<()> {
+    fn write_as_ion<V: ValueWriter>(&self, writer: V) -> IonResult<()> {
         match self {
             IslTypeRef::Named(name, nullability_modifier) => {
                 writer.with_annotations(nullability_modifier.as_annotations())?.write_symbol(name.as_str())

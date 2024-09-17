@@ -9,7 +9,6 @@ use crate::violation::{Violation, ViolationCode};
 use ion_rs::{Element, Struct, Symbol, Sequence, IonType, WriteAsIon, ValueWriter, IonResult, StructWriter};
 use regex::Regex;
 use std::fmt::{Display, Formatter};
-use std::io::Write;
 use std::sync::OnceLock;
 
 /// A `try`-like macro to work around the [`Option`]/[`Result`] nested APIs.
@@ -95,11 +94,57 @@ const ISL_2_0_KEYWORDS: [&str; 28] = [
 
 #[derive(Debug, Clone, PartialEq)]
 enum IonSchemaElementKind<'a> {
-    SingleElement(Element),
-    Document(Sequence),
-    SingleElementRef(&'a Element),
-    DocumentRef(&'a Sequence),
-    // DocumentIteratorRef(&'a impl IntoIterator<Item=Element>),
+    SingleElement(&'a Element),
+    Document(&'a Sequence),
+    // Unfortunately, sometimes we have to convert to an owned sequence.
+    // This is because SequenceIterator is not exposed, so we can't create
+    // an enum that unifies `&'a Sequence` and `&'a [Element]`.
+    OwnedDocument(Sequence),
+}
+
+// Ugh... this type is public.
+pub enum Document<'a> {
+    Borrowed(&'a Sequence),
+    Owned(Sequence),
+}
+
+pub trait AsDocument<'a> {
+  fn as_document(&'a self) -> Document<'a>;
+}
+
+impl <'a> AsDocument<'a> for Sequence {
+    fn as_document(&'a self) -> Document<'a> {
+        Document::Borrowed(self)
+    }
+}
+
+pub trait ToDocument<'a> {
+    fn to_document(self) -> Document<'a>;
+}
+
+impl <'a> ToDocument<'a> for Vec<Element> {
+    fn to_document(self) -> Document<'a> {
+        Document::Owned(Sequence::from(self))
+    }
+}
+
+impl <'a> From<&'a Element> for IonSchemaElement<'a> {
+    fn from(value: &'a Element) -> Self {
+        if value.annotations().contains("document") {
+            todo!();
+        }
+        IonSchemaElement { content: IonSchemaElementKind::SingleElement(value) }
+    }
+}
+
+impl <'a> From<Document<'a>> for IonSchemaElement<'a> {
+    fn from(value: Document<'a>) -> Self {
+        let content = match value {
+            Document::Borrowed(s) => IonSchemaElementKind::Document(s),
+            Document::Owned(s) => IonSchemaElementKind::OwnedDocument(s),
+        };
+        IonSchemaElement { content }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Copy)]
@@ -197,31 +242,27 @@ impl <'a> IonSchemaElement<'a> where Self: 'a {
         match &self.content {
             IonSchemaElementKind::SingleElement(e) => e.as_sequence(),
             IonSchemaElementKind::Document(seq) => Some(seq),
-            IonSchemaElementKind::SingleElementRef(e) => e.as_sequence(),
-            IonSchemaElementKind::DocumentRef(seq) => Some(seq),
+            IonSchemaElementKind::OwnedDocument(seq) => Some(seq),
         }
     }
 
     pub fn as_struct(&'a self) -> Option<&'a Struct> {
-        match &self.content {
+        match self.content {
             IonSchemaElementKind::SingleElement(e) => e.as_struct(),
-            IonSchemaElementKind::SingleElementRef(e) => e.as_struct(),
             _ => None
         }
     }
 
     pub fn as_element(&'a self) -> Option<&'a Element> {
-        match &self.content {
+        match self.content {
             IonSchemaElementKind::SingleElement(element) => Some(element),
-            IonSchemaElementKind::SingleElementRef(element) => Some(element),
             _ => None,
         }
     }
 
     pub fn as_document(&'a self) -> Option<&'a Sequence> {
-        match &self.content {
+        match self.content {
             IonSchemaElementKind::Document(seq) => Some(seq),
-            IonSchemaElementKind::DocumentRef(seq) => Some(seq),
             _ => None,
         }
     }
@@ -277,10 +318,7 @@ impl <'a> IonSchemaElement<'a> where Self: 'a {
 impl <'a> Display for IonSchemaElement<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
         match &self.content {
-            IonSchemaElementKind::SingleElement(element)  => {
-                write!(f, "{element}")
-            }
-            IonSchemaElementKind::SingleElementRef(element) => {
+            IonSchemaElementKind::SingleElement(element) => {
                 write!(f, "{element}")
             }
             IonSchemaElementKind::Document(document) => {
@@ -290,7 +328,7 @@ impl <'a> Display for IonSchemaElement<'a> {
                 }
                 write!(f, "/* end */")
             }
-                IonSchemaElementKind::DocumentRef(document) => {
+            IonSchemaElementKind::OwnedDocument(document) => {
                 write!(f, "/* Ion document */ ")?;
                 for value in document.iter() {
                     write!(f, "{value} ")?;
@@ -298,48 +336,6 @@ impl <'a> Display for IonSchemaElement<'a> {
                 write!(f, "/* end */")
             }
         }
-    }
-}
-
-impl <'a> From<Element> for IonSchemaElement<'a> {
-    fn from(value: Element) -> Self {
-        if value.annotations().contains("document") {
-            todo!();
-        }
-        IonSchemaElement { content: IonSchemaElementKind::SingleElement(value) }
-    }
-}
-
-impl <'a> From<&'a Element> for IonSchemaElement<'a> {
-    fn from(value: &'a Element) -> Self {
-        if value.annotations().contains("document") {
-            todo!();
-        }
-        IonSchemaElement { content: IonSchemaElementKind::SingleElementRef(value) }
-    }
-}
-
-impl <'a> From<Sequence> for IonSchemaElement<'a> {
-    fn from(value: Sequence) -> Self {
-        IonSchemaElement { content: IonSchemaElementKind::Document(value) }
-    }
-}
-
-impl <'a> From<&'a Sequence> for IonSchemaElement<'a> {
-    fn from(value: &'a Sequence) -> Self {
-        IonSchemaElement { content: IonSchemaElementKind::DocumentRef(value) }
-    }
-}
-
-impl <'a> From<Vec<Element>> for IonSchemaElement<'a> {
-    fn from(value: Vec<Element>) -> Self {
-        IonSchemaElement { content: IonSchemaElementKind::Document(value.into()) }
-    }
-}
-
-impl <'a> From<&'a IonSchemaElement<'a>> for IonSchemaElement<'a> {
-    fn from(value: &'a IonSchemaElement<'a>) -> Self {
-        todo!()
     }
 }
 

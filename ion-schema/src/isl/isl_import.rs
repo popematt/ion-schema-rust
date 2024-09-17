@@ -1,5 +1,5 @@
 use crate::result::{invalid_schema_error, invalid_schema_error_raw, IonSchemaResult};
-use ion_rs::{Element, IonResult, StructWriter, Symbol, ValueWriter, WriteAsIon, WriteConfig};
+use ion_rs::{Element, IonResult, StructWriter, Symbol, ValueWriter, WriteAsIon};
 
 /// Represents an [import] in an ISL schema.
 ///

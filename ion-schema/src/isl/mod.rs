@@ -140,16 +140,10 @@
 use std::collections::HashMap;
 use crate::isl::isl_import::{IslImport, IslImportType};
 use crate::isl::isl_type::IslType;
-use crate::result::IonSchemaResult;
 use crate::UserReservedFields;
-use ion_rs::{ElementWriter, Encoding, IntoAnnotatedElement, IonResult, Reader, SequenceWriter, StructWriter, ValueWriter, WriteAsIon, WriteConfig, Writer};
-use ion_rs::Annotatable;
+use ion_rs::{IonResult, SequenceWriter, StructWriter, ValueWriter, WriteAsIon};
 use ion_rs::Element;
-use ion_rs::{IonType};
 use std::fmt::{Display, Formatter};
-use std::io::Write;
-use std::ptr::write;
-use ion_rs::v1_0::Text;
 
 pub mod isl_constraint;
 pub mod isl_import;
@@ -476,7 +470,7 @@ impl IslSchema {
     }
 
     pub fn inline_imported_types(&self) -> impl Iterator<Item=&IslImportType> {
-        (&self.inline_imported_types).into_iter()
+        self.inline_imported_types.iter()
     }
 
     /// Provides top level open content for given schema
@@ -544,7 +538,7 @@ mod isl_tests {
     use crate::isl::*;
     use crate::result::IonSchemaResult;
     use crate::system::SchemaSystem;
-    use ion_rs::{Element, TextFormat, WriteConfig};
+    use ion_rs::{Element, TextFormat, WriteConfig, Writer};
     use ion_rs::Decimal;
     use ion_rs::IonType;
     use ion_rs::Symbol;
