@@ -10,6 +10,7 @@ use ion_rs::{Element, Struct, Symbol, Sequence, IonType, WriteAsIon, ValueWriter
 use regex::Regex;
 use std::fmt::{Display, Formatter};
 use std::sync::OnceLock;
+use crate::types::TypeDefinition;
 
 /// A `try`-like macro to work around the [`Option`]/[`Result`] nested APIs.
 /// These API require checking the type and then calling the appropriate getter function
@@ -207,38 +208,22 @@ impl From<IonType> for IonSchemaElementType {
     }
 }
 
-/// Provide an Ion schema Element which includes all Elements and a document type
+/// Represents a value that can be validated by Ion Schema.
 ///
-/// An [IonSchemaElement] can be constructed from [&Element] or [Element] to represent a single
-/// Ion value, or from [Sequence] and [&Sequence] to represent a document.
+/// An [IonSchemaElement] can be constructed from [Element] to represent a single Ion value, or
+/// from [Document] to represent the Ion Schema document type.
 ///
-/// ## Example:
-/// In general `TypeRef` `validate()` takes in IonSchemaElement as the value to be validated.
-/// In order to create an `IonSchemaElement`:
+/// In general, users do not need to construct this directly. Ion Schema APIs accept
+/// `Into<IonSchemaElement>` rather than directly accepting `IonSchemaElement`.
 ///
-/// ```
-/// use ion_rs::Element;
-/// use ion_schema::IonSchemaElement;
-///
-/// // create an IonSchemaElement from an Element by borrowing it
-/// let element0: Element = 0.into();
-/// let ion_schema_element: IonSchemaElement = (&element0).into();
-///
-/// // create an IonSchemaElement from an Element by taking ownership of it
-/// let element1: Element = 1.into();
-/// let ion_schema_element: IonSchemaElement = element1.into();
-///
-/// // create an IonSchemaElement for document type based on vector of elements
-/// let elements1: Vec<Element> = vec![2.into()];
-/// let document: IonSchemaElement = elements1.into();
-/// ```
+/// See [TypeDefinition::validate] for examples of use.
 #[derive(Debug, Clone, PartialEq)]
 pub struct IonSchemaElement<'a> {
     content: IonSchemaElementKind<'a>
 }
 
 impl <'a> IonSchemaElement<'a> where Self: 'a {
-    pub fn as_sequence(&'a self) -> Option<&'a Sequence> {
+    pub(crate) fn as_sequence(&'a self) -> Option<&'a Sequence> {
         match &self.content {
             IonSchemaElementKind::SingleElement(e) => e.as_sequence(),
             IonSchemaElementKind::Document(seq) => Some(seq),
@@ -246,35 +231,35 @@ impl <'a> IonSchemaElement<'a> where Self: 'a {
         }
     }
 
-    pub fn as_struct(&'a self) -> Option<&'a Struct> {
+    pub(crate) fn as_struct(&'a self) -> Option<&'a Struct> {
         match self.content {
             IonSchemaElementKind::SingleElement(e) => e.as_struct(),
             _ => None
         }
     }
 
-    pub fn as_element(&'a self) -> Option<&'a Element> {
+    pub(crate) fn as_element(&'a self) -> Option<&'a Element> {
         match self.content {
             IonSchemaElementKind::SingleElement(element) => Some(element),
             _ => None,
         }
     }
 
-    pub fn as_document(&'a self) -> Option<&'a Sequence> {
+    pub(crate) fn as_document(&'a self) -> Option<&'a Sequence> {
         match self.content {
             IonSchemaElementKind::Document(seq) => Some(seq),
             _ => None,
         }
     }
 
-    pub fn ion_schema_type(&self) -> IonSchemaElementType {
+    pub(crate) fn ion_schema_type(&self) -> IonSchemaElementType {
         match self.as_element() {
             Some(e) => e.ion_type().into(),
             _ => IonSchemaElementType::Document,
         }
     }
 
-    pub fn is_null(&self) -> bool {
+    pub(crate) fn is_null(&self) -> bool {
         match self.as_element() {
             Some(e) => e.is_null(),
             _ => false
