@@ -10,8 +10,8 @@ use crate::result::{
 use crate::system::{PendingTypes, TypeId, TypeStore};
 use crate::type_reference::{TypeReference, VariablyOccurringTypeRef};
 use crate::types::TypeDefinitionImpl;
+use ion_rs::IonType;
 use ion_rs::{Element, IonResult, StructWriter, Value, ValueWriter, WriteAsIon};
-use ion_rs::{IonType};
 
 /// Provides public facing APIs for constructing ISL type references programmatically for ISL 1.0
 pub mod v_1_0 {
@@ -91,7 +91,7 @@ pub enum NullabilityModifier {
 }
 
 impl NullabilityModifier {
-    fn as_annotations(&self) -> &'static[&'static str] {
+    fn as_annotations(&self) -> &'static [&'static str] {
         match self {
             NullabilityModifier::Nullable => &["nullable"],
             NullabilityModifier::NullOr => &["$null_or"],
@@ -332,15 +332,15 @@ impl IslTypeRef {
 impl WriteAsIon for IslTypeRef {
     fn write_as_ion<V: ValueWriter>(&self, writer: V) -> IonResult<()> {
         match self {
-            IslTypeRef::Named(name, nullability_modifier) => {
-                writer.with_annotations(nullability_modifier.as_annotations())?.write_symbol(name.as_str())
-            }
-            IslTypeRef::TypeImport(type_import, nullability_modifier) => {
-                writer.with_annotations(nullability_modifier.as_annotations())?.write(type_import)
-            }
-            IslTypeRef::Anonymous(type_def, nullability_modifier) => {
-                writer.with_annotations(nullability_modifier.as_annotations())?.write(type_def)
-            }
+            IslTypeRef::Named(name, nullability_modifier) => writer
+                .with_annotations(nullability_modifier.as_annotations())?
+                .write_symbol(name.as_str()),
+            IslTypeRef::TypeImport(type_import, nullability_modifier) => writer
+                .with_annotations(nullability_modifier.as_annotations())?
+                .write(type_import),
+            IslTypeRef::Anonymous(type_def, nullability_modifier) => writer
+                .with_annotations(nullability_modifier.as_annotations())?
+                .write(type_def),
         }
     }
 }
@@ -462,12 +462,12 @@ impl IslVariablyOccurringTypeRef {
 impl WriteAsIon for IslVariablyOccurringTypeRef {
     fn write_as_ion<V: ValueWriter>(&self, writer: V) -> IonResult<()> {
         match &self.type_ref {
-            IslTypeRef::Named(name, nullability_modifier) => {
-                writer.with_annotations(nullability_modifier.as_annotations())?.write_symbol(name.as_str())
-            }
-            IslTypeRef::TypeImport(type_import, nullability_modifier) => {
-                writer.with_annotations(nullability_modifier.as_annotations())?.write(type_import)
-            }
+            IslTypeRef::Named(name, nullability_modifier) => writer
+                .with_annotations(nullability_modifier.as_annotations())?
+                .write_symbol(name.as_str()),
+            IslTypeRef::TypeImport(type_import, nullability_modifier) => writer
+                .with_annotations(nullability_modifier.as_annotations())?
+                .write(type_import),
             IslTypeRef::Anonymous(type_def, nullability_modifier) => {
                 let mut struct_writer = writer
                     .with_annotations(nullability_modifier.as_annotations())?

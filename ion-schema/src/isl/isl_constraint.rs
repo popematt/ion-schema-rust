@@ -8,8 +8,8 @@ use crate::isl::util::{
 use crate::isl::IslVersion;
 use crate::result::{invalid_schema_error, invalid_schema_error_raw, IonSchemaResult};
 use crate::{isl, isl_require};
-use ion_rs::{IonResult, SequenceWriter, StructWriter, ValueWriter, WriteAsIon};
 use ion_rs::{Element, Value};
+use ion_rs::{IonResult, SequenceWriter, StructWriter, ValueWriter, WriteAsIon};
 use ion_rs::{IonType, Symbol};
 use std::collections::HashMap;
 use std::convert::TryInto;
@@ -1017,11 +1017,7 @@ impl WriteAsIon for IslConstraintValue {
             }
             IslConstraintValue::Exponent(range) => writer.write(range),
             IslConstraintValue::Fields(fields, content_closed) => {
-                let annotations: &[&'static str] = if *content_closed {
-                    &["closed"]
-                } else {
-                    &[]
-                };
+                let annotations: &[&'static str] = if *content_closed { &["closed"] } else { &[] };
                 let mut struct_writer = writer.with_annotations(annotations)?.struct_writer()?;
                 for (field_name, type_ref) in fields.iter() {
                     struct_writer.write(field_name.as_str(), type_ref)?;
@@ -1200,7 +1196,9 @@ impl WriteAsIon for IslSimpleAnnotationsConstraint {
         if self.is_required {
             annotation_modifiers.push("required");
         }
-        writer.with_annotations(annotation_modifiers)?.write(&self.annotations)
+        writer
+            .with_annotations(annotation_modifiers)?
+            .write(&self.annotations)
     }
 }
 
@@ -1290,7 +1288,9 @@ impl WriteAsIon for IslRegexConstraint {
         if self.multi_line {
             regex_modifiers.push("m");
         }
-        writer.with_annotations(regex_modifiers)?.write_string(&self.expression)
+        writer
+            .with_annotations(regex_modifiers)?
+            .write_string(&self.expression)
     }
 }
 

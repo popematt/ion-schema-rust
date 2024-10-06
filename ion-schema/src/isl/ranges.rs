@@ -15,15 +15,15 @@
 // as a result, it cannot even implement the checked ops traits (such as `CheckedAdd`) from the
 // `num_traits` crate. See https://github.com/rust-num/num-traits/issues/274.
 
-use std::cmp::Ordering;
 use crate::isl::ranges::base::RangeValidation;
 use crate::isl::util::TimestampPrecision;
+use crate::IonSchemaResult;
 use crate::{invalid_schema_error, invalid_schema_error_raw, isl_require};
-use crate::{IonSchemaResult};
-use ion_rs::{Element, IonResult, ValueWriter, WriteAsIon};
 use ion_rs::Decimal;
+use ion_rs::{Element, IonResult, ValueWriter, WriteAsIon};
 use ion_rs::{IonType, Timestamp};
 use num_traits::{CheckedAdd, One};
+use std::cmp::Ordering;
 use std::fmt::{Display, Formatter};
 
 /// An end (upper or lower) of a [`Range`].
@@ -50,12 +50,12 @@ impl<T: PartialOrd> PartialEq<T> for Limit<T> {
     fn eq(&self, other: &T) -> bool {
         match self {
             Limit::Inclusive(x) => x == other,
-            _ => false
+            _ => false,
         }
     }
 }
 
-impl <T: PartialOrd> PartialOrd<T> for Limit<T> {
+impl<T: PartialOrd> PartialOrd<T> for Limit<T> {
     fn partial_cmp(&self, other: &T) -> Option<Ordering> {
         match self {
             Limit::Min => Some(Ordering::Less),
@@ -67,7 +67,7 @@ impl <T: PartialOrd> PartialOrd<T> for Limit<T> {
                     Some(Ordering::Equal) => None,
                     order => order,
                 }
-            },
+            }
         }
     }
 }
@@ -83,7 +83,7 @@ impl<T: Display> Display for Limit<T> {
     }
 }
 
-impl <T: WriteAsIon> WriteAsIon for Limit<T> {
+impl<T: WriteAsIon> WriteAsIon for Limit<T> {
     fn write_as_ion<V: ValueWriter>(&self, writer: V) -> IonResult<()> {
         match self {
             // TODO: change Unbounded to Min and Max
@@ -94,7 +94,6 @@ impl <T: WriteAsIon> WriteAsIon for Limit<T> {
         }
     }
 }
-
 
 pub type UsizeRange = base::Range<usize>;
 impl RangeValidation<usize> for UsizeRange {
@@ -282,10 +281,8 @@ mod base {
                 let seq = element.as_sequence().unwrap();
                 isl_require!(seq.len() == 2 => "range must have a lower and upper bound; found: {element}")?;
 
-                let lower_limit =
-                    Self::read_range_bound(element, seq.get(0).unwrap(), &value_fn)?;
-                let upper_limit =
-                    Self::read_range_bound(element, seq.get(1).unwrap(), &value_fn)?;
+                let lower_limit = Self::read_range_bound(element, seq.get(0).unwrap(), &value_fn)?;
+                let upper_limit = Self::read_range_bound(element, seq.get(1).unwrap(), &value_fn)?;
 
                 Self::new(lower_limit, upper_limit)
             } else {
@@ -310,14 +307,16 @@ mod base {
                 Some(Some("min")) => {
                     isl_require!(!is_exclusive => "'min' may not be exclusive")?;
                     Ok(Limit::Min)
-                },
+                }
                 Some(Some("max")) => {
                     isl_require!(!is_exclusive => "'max' may not be exclusive")?;
                     Ok(Limit::Max)
-                },
+                }
                 _ => {
                     let limit_value: T = value_fn(boundary_element).ok_or_else(|| {
-                        invalid_schema_error_raw(format!("invalid value for range boundary: {element}"))
+                        invalid_schema_error_raw(format!(
+                            "invalid value for range boundary: {element}"
+                        ))
                     })?;
                     if is_exclusive {
                         Ok(Limit::Exclusive(limit_value))
@@ -342,27 +341,18 @@ mod base {
         fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
             match &self.lower {
                 Limit::Inclusive(value) if self.lower == self.upper => value.fmt(f),
-                _ => {
-                    f.write_fmt(format_args!("range::[{},{}]", self.lower, self.upper))
-                }
+                _ => f.write_fmt(format_args!("range::[{},{}]", self.lower, self.upper)),
             }
         }
     }
 
-    impl <T: WriteAsIon + PartialEq> WriteAsIon for Range<T> {
+    impl<T: WriteAsIon + PartialEq> WriteAsIon for Range<T> {
         fn write_as_ion<V: ValueWriter>(&self, writer: V) -> IonResult<()> {
-
             match &self.lower {
-                Limit::Inclusive(value) if self.lower == self.upper => {
-                    writer.write(value)
-                }
-                _ => {
-                    writer.with_annotations(["range"])?
-                        .write([
-                            &self.lower,
-                            &self.upper,
-                        ])
-                }
+                Limit::Inclusive(value) if self.lower == self.upper => writer.write(value),
+                _ => writer
+                    .with_annotations(["range"])?
+                    .write([&self.lower, &self.upper]),
             }
         }
     }
@@ -446,11 +436,17 @@ mod tests {
         let range = range.unwrap();
         for valid_value in valid_values {
             let range_contains_result = range.contains(&valid_value);
-            assert!(range_contains_result, "Value {valid_value} was not in {range}")
+            assert!(
+                range_contains_result,
+                "Value {valid_value} was not in {range}"
+            )
         }
         for invalid_value in invalid_values {
             let range_contains_result = range.contains(&invalid_value);
-            assert!(!range_contains_result, "Value {invalid_value} was unexpectedly in {range}")
+            assert!(
+                !range_contains_result,
+                "Value {invalid_value} was unexpectedly in {range}"
+            )
         }
     }
 

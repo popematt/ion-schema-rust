@@ -6,7 +6,9 @@ use crate::isl::isl_constraint::IslConstraintValue;
 use crate::isl::isl_type::IslType;
 use crate::result::{invalid_schema_error, invalid_schema_error_raw, IonSchemaResult};
 use crate::violation::{Violation, ViolationCode};
-use ion_rs::{Element, Struct, Symbol, Sequence, IonType, WriteAsIon, ValueWriter, IonResult, StructWriter};
+use ion_rs::{
+    Element, IonResult, IonType, Sequence, Struct, StructWriter, Symbol, ValueWriter, WriteAsIon,
+};
 use regex::Regex;
 use std::fmt::{Display, Formatter};
 use std::sync::OnceLock;
@@ -109,10 +111,10 @@ pub enum Document<'a> {
 }
 
 pub trait AsDocument<'a> {
-  fn as_document(&'a self) -> Document<'a>;
+    fn as_document(&'a self) -> Document<'a>;
 }
 
-impl <'a> AsDocument<'a> for Sequence {
+impl<'a> AsDocument<'a> for Sequence {
     fn as_document(&'a self) -> Document<'a> {
         Document::Borrowed(self)
     }
@@ -122,22 +124,24 @@ pub trait ToDocument<'a> {
     fn to_document(self) -> Document<'a>;
 }
 
-impl <'a> ToDocument<'a> for Vec<Element> {
+impl<'a> ToDocument<'a> for Vec<Element> {
     fn to_document(self) -> Document<'a> {
         Document::Owned(Sequence::from(self))
     }
 }
 
-impl <'a> From<&'a Element> for IonSchemaElement<'a> {
+impl<'a> From<&'a Element> for IonSchemaElement<'a> {
     fn from(value: &'a Element) -> Self {
         if value.annotations().contains("document") {
             todo!();
         }
-        IonSchemaElement { content: IonSchemaElementKind::SingleElement(value) }
+        IonSchemaElement {
+            content: IonSchemaElementKind::SingleElement(value),
+        }
     }
 }
 
-impl <'a> From<Document<'a>> for IonSchemaElement<'a> {
+impl<'a> From<Document<'a>> for IonSchemaElement<'a> {
     fn from(value: Document<'a>) -> Self {
         let content = match value {
             Document::Borrowed(s) => IonSchemaElementKind::Document(s),
@@ -218,10 +222,13 @@ impl From<IonType> for IonSchemaElementType {
 /// See [TypeDefinition::validate] for examples of use.
 #[derive(Debug, Clone, PartialEq)]
 pub struct IonSchemaElement<'a> {
-    content: IonSchemaElementKind<'a>
+    content: IonSchemaElementKind<'a>,
 }
 
-impl <'a> IonSchemaElement<'a> where Self: 'a {
+impl<'a> IonSchemaElement<'a>
+where
+    Self: 'a,
+{
     pub(crate) fn as_sequence(&'a self) -> Option<&'a Sequence> {
         match &self.content {
             IonSchemaElementKind::SingleElement(e) => e.as_sequence(),
@@ -233,7 +240,7 @@ impl <'a> IonSchemaElement<'a> where Self: 'a {
     pub(crate) fn as_struct(&'a self) -> Option<&'a Struct> {
         match self.content {
             IonSchemaElementKind::SingleElement(e) => e.as_struct(),
-            _ => None
+            _ => None,
         }
     }
 
@@ -261,7 +268,7 @@ impl <'a> IonSchemaElement<'a> where Self: 'a {
     pub(crate) fn is_null(&self) -> bool {
         match self.as_element() {
             Some(e) => e.is_null(),
-            _ => false
+            _ => false,
         }
     }
 
@@ -299,7 +306,7 @@ impl <'a> IonSchemaElement<'a> where Self: 'a {
     }
 }
 
-impl <'a> Display for IonSchemaElement<'a> {
+impl<'a> Display for IonSchemaElement<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
         match &self.content {
             IonSchemaElementKind::SingleElement(element) => {
@@ -325,7 +332,10 @@ impl <'a> Display for IonSchemaElement<'a> {
 
 // helper function to be used by schema tests
 fn load(text: &str) -> Vec<Element> {
-    Element::read_all(text.as_bytes()).expect("parsing failed unexpectedly").into_iter().collect()
+    Element::read_all(text.as_bytes())
+        .expect("parsing failed unexpectedly")
+        .into_iter()
+        .collect()
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -336,9 +346,10 @@ pub struct UserReservedFields {
 }
 
 impl UserReservedFields {
-
     pub(crate) fn is_empty(&self) -> bool {
-        self.type_fields.is_empty() && self.schema_header_fields.is_empty() && self.schema_footer_fields.is_empty()
+        self.type_fields.is_empty()
+            && self.schema_header_fields.is_empty()
+            && self.schema_footer_fields.is_empty()
     }
 
     /// Parse use reserved fields inside a [Struct]
@@ -477,9 +488,15 @@ impl UserReservedFields {
 impl WriteAsIon for UserReservedFields {
     fn write_as_ion<V: ValueWriter>(&self, writer: V) -> IonResult<()> {
         let mut struct_writer = writer.struct_writer()?;
-        struct_writer.field_writer("schema_header").write(&self.schema_header_fields)?;
-        struct_writer.field_writer("type").write(&self.type_fields)?;
-        struct_writer.field_writer("schema_footer").write(&self.schema_footer_fields)?;
+        struct_writer
+            .field_writer("schema_header")
+            .write(&self.schema_header_fields)?;
+        struct_writer
+            .field_writer("type")
+            .write(&self.type_fields)?;
+        struct_writer
+            .field_writer("schema_footer")
+            .write(&self.schema_footer_fields)?;
         struct_writer.close()
     }
 }

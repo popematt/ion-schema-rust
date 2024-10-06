@@ -1,8 +1,8 @@
 #[macro_use]
 extern crate clap;
 use clap::{App, ArgMatches};
-use ion_rs::{Element, SequenceWriter, StructWriter, TextFormat, ValueWriter, Writer};
 use ion_rs::WriteConfig;
+use ion_rs::{Element, SequenceWriter, StructWriter, TextFormat, ValueWriter, Writer};
 use ion_schema::authority::{DocumentAuthority, FileSystemDocumentAuthority};
 use ion_schema::result::IonSchemaResult;
 use ion_schema::system::SchemaSystem;
@@ -97,12 +97,20 @@ fn validate(command_args: &ArgMatches) -> IonSchemaResult<()> {
         match validation_result {
             Ok(_) => {
                 struct_writer.field_writer("result").write_string("Valid")?;
-                struct_writer.field_writer("value").write_string(format!("{owned_element}"))?;
-                struct_writer.field_writer("schema").write_string(schema_id)?;
+                struct_writer
+                    .field_writer("value")
+                    .write_string(format!("{owned_element}"))?;
+                struct_writer
+                    .field_writer("schema")
+                    .write_string(schema_id)?;
             }
             Err(_) => {
-                struct_writer.field_writer("result").write_string("Invalid")?;
-                struct_writer.field_writer("violation").write_string(format!("{:#?}", validation_result.unwrap_err()))?;
+                struct_writer
+                    .field_writer("result")
+                    .write_string("Invalid")?;
+                struct_writer
+                    .field_writer("violation")
+                    .write_string(format!("{:#?}", validation_result.unwrap_err()))?;
             }
         }
         struct_writer.close()?;

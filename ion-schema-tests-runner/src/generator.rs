@@ -2,6 +2,7 @@ use crate::generator::util::*;
 use crate::model::{TestCaseDetails, TestCaseVec};
 use ion_rs::Element;
 use ion_rs::IonType;
+use ion_rs::Sequence;
 use ion_schema::isl::IslVersion;
 use proc_macro2::{Literal, TokenStream, TokenTree};
 use quote::{format_ident, quote};
@@ -10,7 +11,6 @@ use std::convert::TryInto;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
-use ion_rs::Sequence;
 
 /// Function or closure for checking whether to skip/ignore a test case.
 /// The [String] argument is the Rust test name (E.g. foo::bar::my_test), and the function should

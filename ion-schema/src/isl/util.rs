@@ -1,10 +1,10 @@
 use crate::ion_extension::ElementExtensions;
 use crate::isl::ranges::{NumberRange, TimestampRange};
-use crate::isl::{IslVersion};
+use crate::isl::IslVersion;
 use crate::isl_require;
 use crate::result::{invalid_schema_error, IonSchemaError, IonSchemaResult};
-use ion_rs::{Element, IonResult, Value, ValueWriter, WriteAsIon};
 use ion_rs::TimestampPrecision as Precision;
+use ion_rs::{Element, IonResult, Value, ValueWriter, WriteAsIon};
 use ion_rs::{IonType, Timestamp};
 use num_traits::abs;
 use std::cmp::Ordering;
@@ -60,9 +60,13 @@ impl WriteAsIon for Annotation {
     fn write_as_ion<V: ValueWriter>(&self, writer: V) -> IonResult<()> {
         if self.isl_version == IslVersion::V1_0 {
             if self.is_required {
-                writer.with_annotations(["required"])?.write_symbol(self.value.as_str())
+                writer
+                    .with_annotations(["required"])?
+                    .write_symbol(self.value.as_str())
             } else {
-                writer.with_annotations(["optional"])?.write_symbol(self.value.as_str())
+                writer
+                    .with_annotations(["optional"])?
+                    .write_symbol(self.value.as_str())
             }
         } else {
             writer.write_symbol(self.value.as_str())

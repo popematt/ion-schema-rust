@@ -11,7 +11,7 @@ use crate::isl::util::{
     Annotation, Ieee754InterchangeFormat, TimestampOffset, TimestampPrecision, ValidValue,
 };
 use crate::isl::IslVersion;
-use crate::{isl_require};
+use crate::isl_require;
 use crate::nfa::{FinalState, NfaBuilder, NfaEvaluation};
 use crate::result::{
     invalid_schema_error, invalid_schema_error_raw, IonSchemaResult, ValidationResult,
@@ -21,10 +21,10 @@ use crate::type_reference::{TypeReference, VariablyOccurringTypeRef};
 use crate::types::TypeValidator;
 use crate::violation::{Violation, ViolationCode};
 use crate::IonSchemaElement;
-use ion_rs::{Element};
-use ion_rs::Value;
+use ion_rs::Element;
 use ion_rs::IonData;
 use ion_rs::IonType;
+use ion_rs::Value;
 use num_traits::ToPrimitive;
 use regex::{Regex, RegexBuilder};
 use std::collections::{HashMap, HashSet};
@@ -1170,14 +1170,10 @@ impl ConstraintValidator for ContainsConstraint {
         type_store: &TypeStore,
         ion_path: &mut IonPath,
     ) -> ValidationResult {
-
         let values: Vec<IonData<&Element>> = if let Some(seq) = value.as_sequence() {
             seq.elements().map(IonData::from).collect()
         } else if let Some(strukt) = value.as_struct() {
-            strukt.fields()
-                .map(|(k, v)| v)
-                .map(IonData::from)
-                .collect()
+            strukt.fields().map(|(k, v)| v).map(IonData::from).collect()
         } else {
             return Err(Violation::new(
                 "contains",
@@ -1246,26 +1242,23 @@ impl ConstraintValidator for ContainerLengthConstraint {
     ) -> ValidationResult {
         // get the size of given value container
         let size = if let Some(seq) = value.as_sequence() {
-                seq.elements().count()
-            } else if let Some(strukt) = value.as_struct() {
-            strukt.fields()
-                .map(|(k,v)|v)
-                .map(IonData::from)
-                .count()
+            seq.elements().count()
+        } else if let Some(strukt) = value.as_struct() {
+            strukt.fields().map(|(k, v)| v).map(IonData::from).count()
         } else {
             return Err(Violation::new(
                 "container_length",
                 ViolationCode::TypeMismatched,
                 if value.is_null() {
                     format!("expected a container found {value}")
-                }
-                else {
+                } else {
                     format!(
                         "expected a container (a list/sexp/struct) but found {}",
                         value.ion_schema_type()
-                    )},
+                    )
+                },
                 ion_path,
-            ))
+            ));
         };
 
         // get isl length as a range
@@ -1418,37 +1411,37 @@ impl ConstraintValidator for ElementConstraint {
         let mut element_set = vec![];
 
         // get elements for given container in the form (ion_path_element, element_value)
-        let elements: Vec<(IonPathElement, &Element)> =
-            if let Some(seq) = value.as_sequence() {
-                seq.elements()
-                    .enumerate()
-                    .map(|(index, val)| (IonPathElement::Index(index), val))
-                    .collect()
-            } else if let Some(strukt) = value.as_struct() {
-                strukt.fields()
-                    .map(|(name, val)| (IonPathElement::Field(name.to_string()), val))
-                    .collect()
-            } else {
-                // Check for null container
-                if value.is_null() {
-                    return Err(Violation::new(
-                        "element",
-                        ViolationCode::TypeMismatched,
-                        format!("expected a container but found {value}"),
-                        ion_path,
-                    ));
-                }
-                // return Violation if value is not an Ion container
+        let elements: Vec<(IonPathElement, &Element)> = if let Some(seq) = value.as_sequence() {
+            seq.elements()
+                .enumerate()
+                .map(|(index, val)| (IonPathElement::Index(index), val))
+                .collect()
+        } else if let Some(strukt) = value.as_struct() {
+            strukt
+                .fields()
+                .map(|(name, val)| (IonPathElement::Field(name.to_string()), val))
+                .collect()
+        } else {
+            // Check for null container
+            if value.is_null() {
                 return Err(Violation::new(
                     "element",
                     ViolationCode::TypeMismatched,
-                    format!(
-                        "expected a container (a list/sexp/struct) but found {}",
-                        value.ion_schema_type()
-                    ),
+                    format!("expected a container but found {value}"),
                     ion_path,
                 ));
-            };
+            }
+            // return Violation if value is not an Ion container
+            return Err(Violation::new(
+                "element",
+                ViolationCode::TypeMismatched,
+                format!(
+                    "expected a container (a list/sexp/struct) but found {}",
+                    value.ion_schema_type()
+                ),
+                ion_path,
+            ));
+        };
 
         // validate element constraint
         for (ion_path_element, val) in elements {
@@ -1509,10 +1502,8 @@ impl ConstraintValidator for AnnotationsConstraint2_0 {
         ion_path: &mut IonPath,
     ) -> ValidationResult {
         if let Some(element) = value.as_element() {
-            let annotations: Vec<Element> = element.annotations()
-                .iter()
-                .map(Element::symbol)
-                .collect();
+            let annotations: Vec<Element> =
+                element.annotations().iter().map(Element::symbol).collect();
             let annotations_element: Element = ion_rs::Value::List(annotations.into()).into();
             let annotations_ion_schema_element = IonSchemaElement::from(&annotations_element);
 

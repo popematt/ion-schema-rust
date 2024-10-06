@@ -30,8 +30,8 @@ use crate::result::{
 use crate::schema::Schema;
 use crate::types::{BuiltInTypeDefinition, Nullability, TypeDefinitionImpl, TypeDefinitionKind};
 use crate::{is_isl_version_marker, is_reserved_word, UserReservedFields};
-use ion_rs::{Annotations, Element};
 use ion_rs::IonType;
+use ion_rs::{Annotations, Element};
 use std::collections::{HashMap, HashSet};
 use std::io::ErrorKind;
 use std::sync::Arc;
@@ -1277,7 +1277,6 @@ mod schema_system_tests {
     use crate::isl::isl_type_reference;
     use crate::system::IonSchemaError::InvalidSchemaError;
     use std::path::Path;
-    
 
     #[test]
     fn schema_system_add_authorities_test() {
@@ -2049,7 +2048,9 @@ mod schema_system_tests {
                 }
             "#
             .as_bytes(),
-        )?.into_iter().collect();
+        )?
+        .into_iter()
+        .collect();
 
         // verify the open content that is retrieved from the ISL model is same as the expected open content
         let open_content: Vec<_> = schema.open_content().map(|x| x.to_owned()).collect();

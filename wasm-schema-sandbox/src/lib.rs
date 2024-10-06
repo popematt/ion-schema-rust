@@ -1,7 +1,7 @@
 use ion_schema::authority::{DocumentAuthority, MapDocumentAuthority};
 
-use ion_schema::external::ion_rs::{Element, Sequence};
 use ion_schema::external::ion_rs::IonResult;
+use ion_schema::external::ion_rs::{Element, Sequence};
 use ion_schema::result::IonSchemaResult;
 use ion_schema::schema::Schema;
 use ion_schema::system::SchemaSystem;
@@ -197,8 +197,9 @@ pub fn validate(
                 Array::new(),
                 ion.to_string(),
                 true,
-                "More than one Ion value provided but validating as document is not selected".to_string(),
-            )
+                "More than one Ion value provided but validating as document is not selected"
+                    .to_string(),
+            );
         }
         type_ref.validate(value.get(0).unwrap())
     };

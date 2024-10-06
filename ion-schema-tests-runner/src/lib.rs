@@ -108,4 +108,3 @@ pub fn ion_schema_tests(item: _TokenStream) -> _TokenStream {
 
 #[test]
 fn foo() {}
-

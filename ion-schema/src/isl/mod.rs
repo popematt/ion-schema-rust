@@ -137,12 +137,12 @@
 //                 b. While doing (a) store all [TypeDefinition] in the [TypeStore](which could help
 //                    returning resolved types in a schema) and store generated [TypeId] in the constraint.
 
-use std::collections::HashMap;
 use crate::isl::isl_import::{IslImport, IslImportType};
 use crate::isl::isl_type::IslType;
 use crate::UserReservedFields;
-use ion_rs::{IonResult, SequenceWriter, StructWriter, ValueWriter, WriteAsIon};
 use ion_rs::Element;
+use ion_rs::{IonResult, SequenceWriter, StructWriter, ValueWriter, WriteAsIon};
+use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 
 pub mod isl_constraint;
@@ -212,7 +212,6 @@ impl From<SchemaFooter> for SchemaContent {
         SchemaContent::Footer(value)
     }
 }
-
 
 impl SchemaContent {
     fn as_header(&self) -> Option<&SchemaHeader> {
@@ -286,17 +285,21 @@ struct SchemaHeader {
     /// For more information: https://amazon-ion.github.io/ion-schema/docs/isl-1-0/spec#imports
     imports: Vec<IslImport>,
     /// User-defined (aka "open") content
-    user_content: Vec<(String, Element)>
+    user_content: Vec<(String, Element)>,
 }
 
 impl WriteAsIon for SchemaHeader {
     fn write_as_ion<V: ValueWriter>(&self, writer: V) -> IonResult<()> {
-        let mut struct_writer = writer.with_annotations(["schema_header"])?.struct_writer()?;
+        let mut struct_writer = writer
+            .with_annotations(["schema_header"])?
+            .struct_writer()?;
         if !self.imports.is_empty() {
             struct_writer.field_writer("imports").write(&self.imports)?;
         }
         if !self.user_reserved_fields.is_empty() {
-            struct_writer.field_writer("user_reserved_fields").write(&self.user_reserved_fields)?;
+            struct_writer
+                .field_writer("user_reserved_fields")
+                .write(&self.user_reserved_fields)?;
         }
         if !self.user_content.is_empty() {
             for (k, v) in &self.user_content {
@@ -310,12 +313,14 @@ impl WriteAsIon for SchemaHeader {
 #[derive(Debug, Clone, PartialEq, Default)]
 struct SchemaFooter {
     /// User-defined (aka "open") content
-    user_content: Vec<(String, Element)>
+    user_content: Vec<(String, Element)>,
 }
 
 impl WriteAsIon for SchemaFooter {
     fn write_as_ion<V: ValueWriter>(&self, writer: V) -> IonResult<()> {
-        let mut struct_writer = writer.with_annotations(["schema_footer"])?.struct_writer()?;
+        let mut struct_writer = writer
+            .with_annotations(["schema_footer"])?
+            .struct_writer()?;
         if !self.user_content.is_empty() {
             for (k, v) in &self.user_content {
                 struct_writer.write(k.as_str(), v)?;
@@ -347,13 +352,18 @@ impl IslSchema {
     fn new_from_content_vec(
         id: String,
         schema_content: Vec<SchemaContent>,
-        inline_imported_types: Vec<IslImportType>
+        inline_imported_types: Vec<IslImportType>,
     ) -> Self {
         assert!(matches!(schema_content[0], SchemaContent::Version(_)));
-        let header_index = schema_content.iter().position(|x|matches!(x, SchemaContent::Header(_)));
-        let footer_index = schema_content.iter().position(|x|matches!(x, SchemaContent::Footer(_)));
+        let header_index = schema_content
+            .iter()
+            .position(|x| matches!(x, SchemaContent::Header(_)));
+        let footer_index = schema_content
+            .iter()
+            .position(|x| matches!(x, SchemaContent::Footer(_)));
         // TODO: Ensure that ISL 1.0 schemas have footer iff header
-        let types_by_name: HashMap<String, usize> = schema_content.iter()
+        let types_by_name: HashMap<String, usize> = schema_content
+            .iter()
             .enumerate()
             .filter(|&(_, x)| matches!(x, SchemaContent::Type(_)))
             .map(|(i, t)| (t.expect_type().name().unwrap().to_string(), i))
@@ -381,11 +391,14 @@ impl IslSchema {
     ) -> Self {
         let mut schema_content: Vec<SchemaContent> = vec![];
         schema_content.push(version.into());
-        schema_content.push(SchemaHeader {
-            user_reserved_fields: user_reserved_fields.unwrap_or_default(),
-            imports,
-            user_content: vec![],
-        }.into());
+        schema_content.push(
+            SchemaHeader {
+                user_reserved_fields: user_reserved_fields.unwrap_or_default(),
+                imports,
+                user_content: vec![],
+            }
+            .into(),
+        );
         for t in types {
             schema_content.push(t.into());
         }
@@ -459,24 +472,27 @@ impl IslSchema {
     const EMPTY_VEC: Vec<IslImport> = vec![];
     const EMPTY_VEC_REF: &'static Vec<IslImport> = &Self::EMPTY_VEC;
 
-    pub fn imports(&self) -> impl Iterator<Item=&IslImport> {
-        self.header().map(|x| &x.imports)
+    pub fn imports(&self) -> impl Iterator<Item = &IslImport> {
+        self.header()
+            .map(|x| &x.imports)
             .unwrap_or(Self::EMPTY_VEC_REF)
             .iter()
     }
 
-    pub fn types(&self) -> impl Iterator<Item=&IslType> {
+    pub fn types(&self) -> impl Iterator<Item = &IslType> {
         self.schema_content.iter().filter_map(|x| x.as_type())
     }
 
-    pub fn inline_imported_types(&self) -> impl Iterator<Item=&IslImportType> {
+    pub fn inline_imported_types(&self) -> impl Iterator<Item = &IslImportType> {
         self.inline_imported_types.iter()
     }
 
     /// Provides top level open content for given schema
     /// For open content defined within type definitions use IslType#open_content()
-    pub fn open_content(&self) -> impl Iterator<Item=&Element> {
-        self.schema_content.iter().filter_map(|x| x.as_open_content())
+    pub fn open_content(&self) -> impl Iterator<Item = &Element> {
+        self.schema_content
+            .iter()
+            .filter_map(|x| x.as_open_content())
     }
 
     /// Provide user reserved field defined in the given schema for ISL 2.0,
@@ -495,23 +511,24 @@ impl IslSchema {
     }
 }
 
-
-impl <'a> IntoIterator for &'a IslSchema {
+impl<'a> IntoIterator for &'a IslSchema {
     type Item = &'a SchemaContent;
     type IntoIter = SchemaIterator<'a>;
 
     fn into_iter(self) -> Self::IntoIter {
-        SchemaIterator { content: &self.schema_content, i: 0 }
+        SchemaIterator {
+            content: &self.schema_content,
+            i: 0,
+        }
     }
 }
-
 
 pub struct SchemaIterator<'a> {
     content: &'a Vec<SchemaContent>,
     i: usize,
 }
 
-impl <'a> Iterator for SchemaIterator<'a> {
+impl<'a> Iterator for SchemaIterator<'a> {
     type Item = &'a SchemaContent;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -538,11 +555,11 @@ mod isl_tests {
     use crate::isl::*;
     use crate::result::IonSchemaResult;
     use crate::system::SchemaSystem;
-    use ion_rs::{Element, TextFormat, WriteConfig, Writer};
+    use ion_rs::v1_0;
     use ion_rs::Decimal;
     use ion_rs::IonType;
     use ion_rs::Symbol;
-    use ion_rs::v1_0;
+    use ion_rs::{Element, TextFormat, WriteConfig, Writer};
     use rstest::*;
     use std::path::Path;
     use test_generator::test_resources;

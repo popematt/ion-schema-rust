@@ -220,12 +220,16 @@ impl WriteAsIon for IslType {
         let mut struct_writer = writer.with_annotations(["type"])?.struct_writer()?;
 
         if let Some(name) = self.name.as_ref() {
-            struct_writer.field_writer("name").write_symbol(name.as_str())?;
+            struct_writer
+                .field_writer("name")
+                .write_symbol(name.as_str())?;
         }
 
         for constraint in self.constraints() {
             let constraint_name = constraint.constraint().field_name();
-            struct_writer.field_writer(constraint_name).write(constraint.constraint())?;
+            struct_writer
+                .field_writer(constraint_name)
+                .write(constraint.constraint())?;
         }
         struct_writer.close()
     }

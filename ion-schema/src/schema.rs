@@ -134,8 +134,10 @@ mod schema_tests {
 
     // helper function to be used by schema tests
     fn load(text: &str) -> Vec<Element> {
-        Element::read_all(text.as_bytes()).expect("parsing failed unexpectedly")
-            .into_iter().collect()
+        Element::read_all(text.as_bytes())
+            .expect("parsing failed unexpectedly")
+            .into_iter()
+            .collect()
     }
 
     // helper function to be used by validation tests

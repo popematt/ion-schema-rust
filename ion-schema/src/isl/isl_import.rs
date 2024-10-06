@@ -61,11 +61,12 @@ impl WriteAsIon for IslImport {
         match self {
             IslImport::Schema(schema_import) => {
                 let mut struct_writer = writer.struct_writer()?;
-                struct_writer.field_writer("id").write_string(schema_import)?;
+                struct_writer
+                    .field_writer("id")
+                    .write_string(schema_import)?;
                 struct_writer.close()
             }
-            IslImport::Type(type_import) |
-            IslImport::TypeAlias(type_import) => {
+            IslImport::Type(type_import) | IslImport::TypeAlias(type_import) => {
                 writer.write(type_import)
             }
         }
@@ -109,7 +110,9 @@ impl WriteAsIon for IslImportType {
         let mut struct_writer = writer.struct_writer()?;
 
         struct_writer.field_writer("id").write_string(&self.id)?;
-        struct_writer.field_writer("type").write_symbol(self.type_name.as_str())?;
+        struct_writer
+            .field_writer("type")
+            .write_symbol(self.type_name.as_str())?;
         if let Some(alias) = &self.alias {
             struct_writer.write("as", Symbol::from(alias))?;
         }
