@@ -3,10 +3,11 @@
 
 use crate::internal_traits::*;
 use crate::ion_extension::SymbolExtensions;
-use crate::model::builder::TypeDefinitionBuilder;
 use crate::model::constraints::AnnotationsV2Modifier::{Closed, ClosedAndRequired, Required};
+use crate::model::constraints::ConstraintName;
+use crate::model::TypeDefinitionBuilder;
 use crate::result::{invalid_schema_error, invalid_schema_error_raw, IonSchemaResult};
-use crate::{IonSchemaElement, ViolationInfo, ViolationRecorder, ISL_2_0};
+use crate::{IonSchemaElement, ViolationInfo, ViolationRecorder, ISL_1_0, ISL_2_0};
 use ion_rs::{Element, Symbol, ValueWriter};
 use std::ops::ControlFlow;
 
@@ -29,6 +30,14 @@ impl AnnotationsV2Modifier {
 /// Represents the [annotations] constraint, simple syntax, in Ion Schema 2.0
 ///
 /// [annotations]: https://amazon-ion.github.io/ion-schema/docs/isl-2-0/spec#annotations
+///
+/// TODO: Merge with other annotations constraints to form an enum
+/// enum Annotations {
+///     AnnotationsV1(...),
+///     AnnotationsV2Simple(...),
+///     AnnotationsV2Standard(...),
+/// }
+///
 #[derive(Debug, PartialEq, Clone)]
 pub struct AnnotationsV2Simple {
     pub(crate) modifier: AnnotationsV2Modifier,
@@ -54,11 +63,15 @@ impl AnnotationsV2Simple {
     }
 }
 
+impl ConstraintName for AnnotationsV2Simple {
+    const CONSTRAINT_NAME: &'static str = "annotations";
+}
+
 impl TypeDefinitionBuilder<ISL_2_0> {
     /// Adds an Ion Schema 2.0 `annotations` constraint using the simple syntax.
     ///
     /// For standard syntax, see [annotations_type].
-    fn annotations<S: Into<Symbol>, T: IntoIterator<Item = S>>(
+    pub fn annotations<S: Into<Symbol>, T: IntoIterator<Item = S>>(
         mut self,
         modifier: AnnotationsV2Modifier,
         annotations: T,
@@ -73,14 +86,14 @@ impl TypeDefinitionBuilder<ISL_2_0> {
 }
 
 impl ValidateInternal for AnnotationsV2Simple {
-    fn validate_internal<'a, R>(
-        &'a self,
-        value: &IonSchemaElement<'a>,
+    fn validate_internal<'top: 'call, 'call, R>(
+        &'top self,
+        value: &IonSchemaElement<'top>,
         ctx: &ValidationContext,
-        recorder: &'a mut R,
+        recorder: &'call mut R,
     ) -> ControlFlow<()>
     where
-        R: ViolationRecorder<'a>,
+        R: ViolationRecorder<'top>,
     {
         let Some(element) = value.as_element() else {
             return recorder.accept(ViolationInfo::new(
@@ -126,8 +139,15 @@ impl ValidateInternal for AnnotationsV2Simple {
     }
 }
 
+// Default implementation returns Err to indicate that this is unsupported.
+impl WriteAsIsl<ISL_1_0> for AnnotationsV2Simple {}
+
 impl WriteAsIsl<ISL_2_0> for AnnotationsV2Simple {
-    fn write_as_isl<W: ValueWriter>(&self, writer: W) -> IonSchemaResult<()> {
+    fn write_as_isl<W: ValueWriter>(
+        &self,
+        writer: W,
+        ctx: &WriteContext<ISL_2_0>,
+    ) -> IonSchemaResult<()> {
         let writer = match self.modifier {
             Closed => writer.with_annotations(["closed"]),
             Required => writer.with_annotations(["required"]),
@@ -139,7 +159,7 @@ impl WriteAsIsl<ISL_2_0> for AnnotationsV2Simple {
 }
 
 impl ReadFromIsl<ISL_2_0> for AnnotationsV2Simple {
-    fn try_read(ion: &Element, ctx: &LoaderContext) -> IonSchemaResult<Self> {
+    fn try_read(ion: &Element, ctx: &LoaderContext<ISL_2_0>) -> IonSchemaResult<Self> {
         let required = ion.annotations().contains("required");
         let closed = ion.annotations().contains("closed");
         let annotations_len = ion.annotations().len();
@@ -189,11 +209,11 @@ impl ReadFromIsl<ISL_2_0> for AnnotationsV2Simple {
 mod tests {
     use super::AnnotationsV2Modifier;
     use super::AnnotationsV2Simple;
-    use crate::internal_traits::{LoaderContext, ReadFromIsl, WriteAsIsl};
+    use crate::internal_traits::{LoaderContext, ReadFromIsl, WriteAsIsl, WriteContext};
+    use crate::ISL_2_0;
     use ion_rs::v1_0::Text;
     use ion_rs::{Element, SequenceWriter, Writer};
     use rstest::rstest;
-
     // TODO: Tests for TypeDefinitionBuilder function impl, once TypeDefinitionBuilder is further developed
 
     // validate_internal will be covered by ion-schema-tests
@@ -209,7 +229,10 @@ mod tests {
     ) {
         let buffer = Vec::new();
         let mut writer = Writer::new(Text, buffer).unwrap();
-        constraint.write_as_isl(writer.value_writer()).unwrap();
+        let ctx = WriteContext::<ISL_2_0>::new();
+        constraint
+            .write_as_isl(writer.value_writer(), &ctx)
+            .unwrap();
         let output = writer.close().unwrap();
 
         let actual_element = Element::read_one(output);
@@ -225,7 +248,7 @@ mod tests {
     #[case::empty_annotation_list("closed::[]", AnnotationsV2Simple::new(AnnotationsV2Modifier::Closed, Vec::<String>::new()))]
     fn annotations_v2_simple_try_read_ok(#[case] ion: &str, #[case] expected: AnnotationsV2Simple) {
         let element = Element::read_one(ion).unwrap();
-        let load_ctx = LoaderContext {};
+        let load_ctx = LoaderContext::new();
         let result = AnnotationsV2Simple::try_read(&element, &load_ctx);
         assert_eq!(result, Ok(expected))
     }
@@ -241,7 +264,7 @@ mod tests {
     #[case::annotations_cannot_have_unknown_text("required::[$0]")]
     fn annotations_v2_simple_try_read_err(#[case] ion: &str) {
         let element = Element::read_one(ion).unwrap();
-        let load_ctx = LoaderContext {};
+        let load_ctx = LoaderContext::new();
         let result = AnnotationsV2Simple::try_read(&element, &load_ctx);
         assert!(result.is_err())
     }
