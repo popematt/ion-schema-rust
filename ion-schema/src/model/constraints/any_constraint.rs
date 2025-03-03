@@ -1,6 +1,12 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
+
+use crate::internal_traits::{ValidateInternal, ValidationContext, WriteAsIsl, WriteContext};
 use crate::model::constraints::*;
+use crate::result::IonSchemaResult;
+use crate::{IonSchemaElement, IslVersion, ViolationRecorder};
+use ion_rs::ValueWriter;
+use std::ops::ControlFlow;
 
 macro_rules! any_of_these {
     (#[$derives:meta] enum $super_:ident { $($name:ident,)+ }) => {
@@ -16,6 +22,44 @@ macro_rules! any_of_these {
         )+
 
         // Any traits that should be implemented by delegating to the enum variants can be added here.
+        impl ValidateInternal for $super_ {
+            fn validate_internal<'top: 'call, 'call, R>(
+                &'top self,
+                value: &'top IonSchemaElement<'top>,
+                ctx: &ValidationContext,
+                recorder: &'call mut R,
+            ) -> ControlFlow<()>
+            where
+                R: ViolationRecorder<'top>,
+            {
+                match self {
+                    $($super_::$name(constraint) => constraint.validate_internal(value, ctx, recorder),
+                    )+
+                }
+            }
+        }
+
+        impl<V: IslVersion> WriteAsIsl<V> for AnyConstraint
+        where
+            $(
+            $name: WriteAsIsl<V>,)+
+        {
+            fn write_as_isl<W: ValueWriter>(&self, writer: W, ctx: &WriteContext<V>) -> IonSchemaResult<()> {
+                match self {
+                    $($super_::$name(constraint) => $name::write_as_isl(constraint, writer, ctx),
+                    )+
+                }
+            }
+        }
+
+        impl AnyConstraint {
+            pub(crate) const fn constraint_keyword(&self) -> &'static str {
+                match self {
+                    $($super_::$name(_) => $name::CONSTRAINT_NAME,
+                    )+
+                }
+            }
+        }
     }
 }
 
@@ -44,7 +88,7 @@ any_of_these!(
         // Scale,
         // TimestampOffset,
         // TimestampPrecision,
-        // Type,
+        TypeConstraint,
         // Utf8ByteLength,
         // ValidValues,
     }
@@ -92,7 +136,7 @@ any_of_these_refs!(
         // Scale,
         // TimestampOffset,
         // TimestampPrecision,
-        // Type,
+        TypeConstraint,
         // Utf8ByteLength,
         // ValidValues,
     }

@@ -1,4 +1,4 @@
-use crate::ion_extension::ElementExtensions;
+use crate::internal_traits::{LoaderContext, ReadFromIsl};
 use crate::isl::isl_import::{IslImport, IslImportType};
 use crate::isl::isl_type::IslType;
 use crate::isl::ranges::{Limit, UsizeRange};
@@ -97,6 +97,28 @@ impl NullabilityModifier {
             NullabilityModifier::NullOr => &["$null_or"],
             NullabilityModifier::Nothing => &[],
         }
+    }
+}
+
+impl<V: crate::ion_schema_version::IslVersion> ReadFromIsl<V> for NullabilityModifier {
+    fn try_read(ion: &Element, ctx: &LoaderContext<V>) -> IonSchemaResult<Self> {
+        Ok(match V::MAJOR_MINOR {
+            (1, _) => {
+                if ion.annotations().contains("nullable") {
+                    NullabilityModifier::Nullable
+                } else {
+                    NullabilityModifier::Nothing
+                }
+            }
+            (2, _) => {
+                if ion.annotations().contains("$null_or") {
+                    NullabilityModifier::NullOr
+                } else {
+                    NullabilityModifier::Nothing
+                }
+            }
+            _ => unreachable!(),
+        })
     }
 }
 

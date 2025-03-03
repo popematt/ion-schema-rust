@@ -167,7 +167,7 @@ where
     }
 }
 
-impl<'a> Display for IonSchemaElement<'a> {
+impl Display for IonSchemaElement<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
         match &self.content {
             IonSchemaElementKind::SingleElement(element) => {
