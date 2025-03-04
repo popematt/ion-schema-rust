@@ -94,6 +94,19 @@ impl<V: IslVersion> WriteContext<V> {
 pub(crate) trait ReadFromIsl<V: IslVersion>: Sized {
     fn try_read(ion: &Element, ctx: &LoaderContext<V>) -> IonSchemaResult<Self>;
 }
+/// Macro for trivial implementations that can use `expect_*` functions on [`Element`].
+macro_rules! read_from_isl {
+    ($t:ty, $func:ident) => {
+        impl<V: IslVersion> ReadFromIsl<V> for $t {
+            fn try_read(ion: &Element, ctx: &LoaderContext<V>) -> IonSchemaResult<Self> {
+                let i = ion.$func()?;
+                Ok(i)
+            }
+        }
+    };
+}
+read_from_isl!(usize, expect_usize);
+read_from_isl!(i64, expect_i64);
 
 // TODO: fields/functions to support
 //    * looking up types/schemas that are already loaded

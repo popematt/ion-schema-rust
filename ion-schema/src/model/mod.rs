@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 pub mod constraints;
+mod ranges;
 mod type_argument;
 mod type_definition;
 mod type_reference;

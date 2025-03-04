@@ -1,0 +1,300 @@
+// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+use crate::internal_traits::{
+    LoaderContext, ReadFromIsl, ValidateInternal, ValidationContext, WriteAsIsl, WriteContext,
+};
+use crate::ion_extension::ElementExtensions;
+use crate::model::constraints::ConstraintName;
+use crate::model::ranges::IonSchemaRange;
+use crate::model::TypeDefinitionBuilder;
+use crate::result::{invalid_schema_error, IonSchemaResult};
+use crate::{IonSchemaElement, IslVersion, ViolationInfo, ViolationRecorder};
+use ion_rs::{Element, IonResult, TimestampPrecision as TSPrecision, ValueWriter, WriteAsIon};
+use std::fmt::{Debug, Display, Formatter};
+use std::ops::ControlFlow;
+
+// For brevity within this module.
+use TimestampPrecisionValue::*;
+// Associated constants still need to be qualified, even with a * import.
+use TimestampPrecisionValue as Tpv;
+
+/// Argument for the [TimestampPrecision] constraint.
+#[derive(Copy, Clone, Debug, PartialOrd, PartialEq)]
+pub enum TimestampPrecisionValue {
+    Year = -4,
+    Month = -3,
+    Day = -2,
+    Minute = -1,
+    Second = 0,
+    Millisecond = 3,
+    Microsecond = 6,
+    Nanosecond = 9,
+}
+impl TimestampPrecisionValue {
+    const YEAR: &'static str = "year";
+    const MONTH: &'static str = "month";
+    const DAY: &'static str = "day";
+    const MINUTE: &'static str = "minute";
+    const SECOND: &'static str = "second";
+    const MILLIS: &'static str = "millisecond";
+    const MICROS: &'static str = "microsecond";
+    const NANOS: &'static str = "nanosecond";
+
+    /// Returns the [TimestampPrecisionValue] corresponding to a given [i64] value.
+    ///
+    /// This is for internal use only, and will panic if used incorrectly.
+    fn from_i64(value: i64) -> Self {
+        match value {
+            -4 => Year,
+            -3 => Month,
+            -2 => Day,
+            -1 => Minute,
+            0 => Second,
+            3 => Millisecond,
+            6 => Microsecond,
+            9 => Nanosecond,
+            i => unreachable!("reaching this branch indicates a programming error; value was {i}"),
+        }
+    }
+
+    fn to_i64(self) -> i64 {
+        self as i64
+    }
+
+    fn as_str(&self) -> &'static str {
+        match self {
+            Year => Tpv::YEAR,
+            Month => Tpv::MONTH,
+            Day => Tpv::DAY,
+            Minute => Tpv::MINUTE,
+            Second => Tpv::SECOND,
+            Millisecond => Tpv::MILLIS,
+            Microsecond => Tpv::MICROS,
+            Nanosecond => Tpv::NANOS,
+        }
+    }
+}
+
+impl<V: IslVersion> ReadFromIsl<V> for TimestampPrecisionValue {
+    fn try_read(ion: &Element, ctx: &LoaderContext<V>) -> IonSchemaResult<Self> {
+        match ion.as_symbol_text() {
+            Some(Tpv::YEAR) => Ok(Year),
+            Some(Tpv::MONTH) => Ok(Month),
+            Some(Tpv::DAY) => Ok(Day),
+            Some(Tpv::MINUTE) => Ok(Minute),
+            Some(Tpv::SECOND) => Ok(Second),
+            Some(Tpv::MILLIS) => Ok(Millisecond),
+            Some(Tpv::MICROS) => Ok(Microsecond),
+            Some(Tpv::NANOS) => Ok(Nanosecond),
+            _ => invalid_schema_error(format!("not a valid timestamp precision value: {ion}")),
+        }
+    }
+}
+
+impl Display for TimestampPrecisionValue {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl WriteAsIon for TimestampPrecisionValue {
+    fn write_as_ion<V: ValueWriter>(&self, writer: V) -> IonResult<()> {
+        writer.write_symbol(self.as_str())
+    }
+}
+
+/// Represents the `timestamp_precision` constraint (ref. [ISL 1.0], [ISL 2.0]).
+///
+/// [ISL 1.0]: https://amazon-ion.github.io/ion-schema/docs/isl-1-0/spec#timestamp_precision
+/// [ISL 2.0]: https://amazon-ion.github.io/ion-schema/docs/isl-2-0/spec#timestamp_precision
+#[derive(Debug, PartialEq, Clone)]
+pub struct TimestampPrecision {
+    range: IonSchemaRange<i64>,
+}
+
+impl TimestampPrecision {
+    pub(crate) fn new<T: Into<IonSchemaRange<TimestampPrecisionValue>>>(range: T) -> Self {
+        let tsp_range: IonSchemaRange<TimestampPrecisionValue> = range.into();
+        Self {
+            range: tsp_range.map_bounds(|tsp| tsp.to_i64()),
+        }
+    }
+
+    fn new_unchecked<T: TryInto<IonSchemaRange<TimestampPrecisionValue>>>(range: T) -> Self
+    where
+        <T as TryInto<IonSchemaRange<TimestampPrecisionValue>>>::Error: Debug,
+    {
+        let tsp_range: IonSchemaRange<TimestampPrecisionValue> = range.try_into().unwrap();
+        Self {
+            range: tsp_range.map_bounds(|tsp| tsp.to_i64()),
+        }
+    }
+
+    pub fn range(&self) -> IonSchemaRange<TimestampPrecisionValue> {
+        self.range.map_bounds(TimestampPrecisionValue::from_i64)
+    }
+}
+
+impl ConstraintName for TimestampPrecision {
+    const CONSTRAINT_NAME: &'static str = "timestamp_precision";
+}
+
+impl<V: IslVersion> TypeDefinitionBuilder<V> {
+    pub fn timestamp_precision<T: Into<IonSchemaRange<TimestampPrecisionValue>>>(
+        mut self,
+        range: T,
+    ) -> Self {
+        let constraint = TimestampPrecision::new(range);
+        self.constraints.push(constraint.into());
+        self
+    }
+}
+
+impl ValidateInternal for TimestampPrecision {
+    fn validate_internal<'top: 'call, 'call, R>(
+        &'top self,
+        value: &IonSchemaElement<'top>,
+        ctx: &ValidationContext,
+        recorder: &'call mut R,
+    ) -> ControlFlow<()>
+    where
+        R: ViolationRecorder<'top>,
+    {
+        let Some(timestamp) = value.as_timestamp() else {
+            return recorder.accept(ViolationInfo::new(
+                self.into(),
+                value.clone(),
+                format!(
+                    "{} is invalid for 'timestamp_precision'",
+                    value.ion_schema_type()
+                ),
+            ));
+        };
+        let precision = match timestamp.precision() {
+            TSPrecision::Year => Year.to_i64(),
+            TSPrecision::Month => Month.to_i64(),
+            TSPrecision::Day => Day.to_i64(),
+            TSPrecision::HourAndMinute => Minute.to_i64(),
+            TSPrecision::Second => {
+                if let Some(fractional_precision) = timestamp.fractional_seconds_scale() {
+                    fractional_precision
+                } else {
+                    Second.to_i64()
+                }
+            }
+        };
+        let range = self.range;
+        if !range.contains(&precision) {
+            return recorder.accept(ViolationInfo::new(
+                self.into(),
+                value.clone(),
+                format!("expected a timestamp precision of {range}; found {timestamp}",),
+            ));
+        }
+        ControlFlow::Continue(())
+    }
+}
+
+impl<V: IslVersion> WriteAsIsl<V> for TimestampPrecision {
+    fn write_as_isl<W: ValueWriter>(
+        &self,
+        writer: W,
+        ctx: &WriteContext<V>,
+    ) -> IonSchemaResult<()> {
+        self.range
+            .map_bounds(TimestampPrecisionValue::from_i64)
+            .write_as_isl(writer, ctx)
+    }
+}
+
+impl<V: IslVersion> ReadFromIsl<V> for TimestampPrecision {
+    fn try_read(ion: &Element, ctx: &LoaderContext<V>) -> IonSchemaResult<Self> {
+        let range = IonSchemaRange::try_read(ion, ctx)?;
+        Ok(TimestampPrecision::new(range))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::internal_traits::*;
+    use crate::internal_traits::{LoaderContext, WriteContext};
+    use crate::model::constraints::TimestampPrecisionValue::*;
+    use crate::model::constraints::{AnyConstraint, TimestampPrecision};
+    use std::collections::Bound;
+
+    use crate::model::ranges::IonSchemaRange;
+    use crate::model::TypeDefinitionBuilder;
+    use crate::result::IonSchemaResult;
+    use crate::{ISL_1_0, ISL_2_0};
+    use ion_rs::v1_0::Text;
+    use ion_rs::{Element, SequenceWriter, Writer};
+    use rstest::rstest;
+
+    // Most of the range logic is covered in IonSchemaRange test cases.
+    // These primarily cover the things that are specific to timestamp precision.
+    // Validation will be covered by ion-schema-tests
+
+    #[test]
+    fn test_builder() -> IonSchemaResult<()> {
+        let type_ = TypeDefinitionBuilder::<ISL_1_0>::new()
+            .timestamp_precision(Year..=Day)
+            .build();
+
+        assert_eq!(
+            type_.constraints().cloned().collect::<Vec<_>>(),
+            vec![AnyConstraint::TimestampPrecision(TimestampPrecision::new(
+                IonSchemaRange::try_new(Bound::Included(Year), Bound::Included(Day))?
+            ))]
+        );
+        Ok(())
+    }
+
+    #[rstest]
+    #[case::year("year", TimestampPrecision::new_unchecked(Year))]
+    #[case::year("month", TimestampPrecision::new_unchecked(Month))]
+    #[case::year("day", TimestampPrecision::new_unchecked(Day))]
+    #[case::year("minute", TimestampPrecision::new_unchecked(Minute))]
+    #[case::year("second", TimestampPrecision::new_unchecked(Second))]
+    #[case::year("millisecond", TimestampPrecision::new_unchecked(Millisecond))]
+    #[case::year("microsecond", TimestampPrecision::new_unchecked(Microsecond))]
+    #[case::year("nanosecond", TimestampPrecision::new_unchecked(Nanosecond))]
+    #[case::year("range::[min, minute]", TimestampPrecision::new_unchecked(..=Minute))]
+    #[case::year("range::[minute, max]", TimestampPrecision::new_unchecked(Minute..))]
+    fn timestamp_precision_write_as_isl(
+        #[case] expected_ion: &str,
+        #[case] constraint: TimestampPrecision,
+    ) {
+        let buffer = Vec::new();
+        let mut writer = Writer::new(Text, buffer).unwrap();
+        let ctx = WriteContext::<ISL_2_0>::new();
+
+        constraint
+            .write_as_isl(writer.value_writer(), &ctx)
+            .unwrap();
+        let output = writer.close().unwrap();
+
+        let actual_element = Element::read_one(output);
+        let expected_element = Element::read_one(expected_ion);
+
+        assert_eq!(expected_element, actual_element);
+    }
+
+    #[rstest]
+    #[case::year("year", TimestampPrecision::new_unchecked(Year))]
+    #[case::year("month", TimestampPrecision::new_unchecked(Month))]
+    #[case::year("day", TimestampPrecision::new_unchecked(Day))]
+    #[case::year("minute", TimestampPrecision::new_unchecked(Minute))]
+    #[case::year("second", TimestampPrecision::new_unchecked(Second))]
+    #[case::year("millisecond", TimestampPrecision::new_unchecked(Millisecond))]
+    #[case::year("microsecond", TimestampPrecision::new_unchecked(Microsecond))]
+    #[case::year("nanosecond", TimestampPrecision::new_unchecked(Nanosecond))]
+    #[case::year("range::[min, minute]", TimestampPrecision::new_unchecked(..=Minute))]
+    #[case::year("range::[minute, max]", TimestampPrecision::new_unchecked(Minute..))]
+    fn timestamp_precision_try_read_ok(#[case] ion: &str, #[case] expected: TimestampPrecision) {
+        let element = Element::read_one(ion).unwrap();
+        let load_ctx = LoaderContext::<ISL_2_0>::new();
+        let result = TimestampPrecision::try_read(&element, &load_ctx);
+        assert_eq!(result, Ok(expected))
+    }
+}

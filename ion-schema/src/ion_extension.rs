@@ -18,6 +18,12 @@ pub(crate) trait ElementExtensions {
     /// _and_ it can be represented as (fits in) a `Decimal`. Returns `None` if `self` is not one
     /// of the Ion number types or not a finite value.
     fn any_number_as_decimal(&self) -> Option<Decimal>;
+    /// Get up to one annotation from this [`Element`]. If this [`Element`] has more than one
+    /// annotation, or if the only annotation has unknown text, returns [`Err`].
+    fn one_optional_annotation(&self) -> IonSchemaResult<Option<&str>>;
+    /// If this [`Element`] is an Ion symbol with known text, returns [`Some`] with that text.
+    /// Otherwise, returns [`None`].
+    fn as_symbol_text(&self) -> Option<&str>;
 }
 impl ElementExtensions for Element {
     fn as_usize(&self) -> Option<usize> {
@@ -39,6 +45,21 @@ impl ElementExtensions for Element {
             Value::Decimal(d) => Some(*d),
             _ => None,
         }
+    }
+    fn one_optional_annotation(&self) -> IonSchemaResult<Option<&str>> {
+        let mut annotations = self.annotations().iter();
+        let Some(symbol) = annotations.next() else {
+            return Ok(None);
+        };
+        let text = symbol.expect_text()?;
+        match annotations.next() {
+            None => Ok(Some(text)),
+            Some(_) => invalid_schema_error(format!("Unexpected annotations: {self}")),
+        }
+    }
+
+    fn as_symbol_text(&self) -> Option<&str> {
+        self.as_symbol().and_then(|s| s.text())
     }
 }
 
