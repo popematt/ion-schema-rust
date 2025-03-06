@@ -39,8 +39,9 @@ pub mod violation;
 
 mod internal_traits;
 mod ion_schema_version;
-mod model;
 mod violation_recorder;
+
+pub mod model;
 
 pub use ion_schema_element::*;
 pub use ion_schema_version::*;

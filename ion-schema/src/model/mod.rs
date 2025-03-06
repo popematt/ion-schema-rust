@@ -7,4 +7,7 @@ mod type_argument;
 mod type_definition;
 mod type_reference;
 
+pub use ranges::*;
+pub use type_argument::*;
 pub use type_definition::*;
+pub use type_reference::*;

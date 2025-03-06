@@ -7,27 +7,36 @@ use crate::result::{
     invalid_schema_error, invalid_schema_error_raw, IonSchemaError, IonSchemaResult,
 };
 use crate::{isl_require, IslVersion};
-use ion_rs::{Annotatable, Element, SequenceWriter, ValueWriter, WriteAsIon};
+use hidden::RangeBoundType;
+use ion_rs::{Annotatable, Element, SequenceWriter, ValueWriter};
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::{
     Bound, Bound::*, Range, RangeBounds, RangeFrom, RangeInclusive, RangeTo, RangeToInclusive,
 };
 
-trait RangeBoundRequirements
-where
-    Self: PartialOrd + Debug + WriteAsIon + Clone + Display,
-{
+/// RangeBoundType is a marker trait that can only be implemented in this crate.
+mod hidden {
+    use ion_rs::WriteAsIon;
+    use std::fmt::{Debug, Display};
+
+    pub trait RangeBoundType
+    where
+        Self: PartialOrd + Debug + WriteAsIon + Clone + Display,
+    {
+    }
+    impl<T> RangeBoundType for T where T: PartialOrd + Debug + WriteAsIon + Clone + Display {}
 }
-impl<T> RangeBoundRequirements for T where T: PartialOrd + Debug + WriteAsIon + Clone + Display {}
 
 #[derive(Copy, Clone, Debug, PartialEq)]
-pub struct IonSchemaRange<T: RangeBoundRequirements> {
+pub struct IonSchemaRange<T> {
     min: Bound<T>,
     max: Bound<T>,
 }
 
-impl<T: RangeBoundRequirements> IonSchemaRange<T> {
-    pub fn try_new(min: Bound<T>, max: Bound<T>) -> Result<Self, IonSchemaError> {
+impl<T: RangeBoundType> IonSchemaRange<T> {
+    // See https://github.com/amazon-ion/ion-schema/issues/140, which should be resolved before we
+    // make this public.
+    pub(crate) fn try_new(min: Bound<T>, max: Bound<T>) -> Result<Self, IonSchemaError> {
         match (&min, &max) {
             (Unbounded, Unbounded) => Err(()),
             (Excluded(x), Included(y)) if x >= y => Err(()),
@@ -52,22 +61,7 @@ impl<T: RangeBoundRequirements> IonSchemaRange<T> {
     pub fn max(&self) -> &Bound<T> {
         &self.max
     }
-}
 
-impl<T: RangeBoundRequirements> IonSchemaRange<T> {
-    pub(crate) fn map_bounds<F: Fn(T) -> U, U: RangeBoundRequirements>(
-        self,
-        transform: F,
-    ) -> IonSchemaRange<U> {
-        let IonSchemaRange { min, max } = self;
-        IonSchemaRange {
-            min: min.map(&transform),
-            max: max.map(&transform),
-        }
-    }
-}
-
-impl<T: RangeBoundRequirements> IonSchemaRange<T> {
     pub fn contains(&self, value: &T) -> bool {
         let is_above_min = match &self.min {
             Unbounded => true,
@@ -81,9 +75,20 @@ impl<T: RangeBoundRequirements> IonSchemaRange<T> {
         };
         is_above_min && is_below_max
     }
+
+    pub(crate) fn map_bounds<F: Fn(T) -> U, U: RangeBoundType>(
+        self,
+        transform: F,
+    ) -> IonSchemaRange<U> {
+        let IonSchemaRange { min, max } = self;
+        IonSchemaRange {
+            min: min.map(&transform),
+            max: max.map(&transform),
+        }
+    }
 }
 
-impl<T: RangeBoundRequirements> Display for IonSchemaRange<T> {
+impl<T: RangeBoundType> Display for IonSchemaRange<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         format_range(&self.min, &self.max, f)
     }
@@ -118,7 +123,7 @@ fn format_bound<T: Display>(
     }
 }
 
-impl<V: IslVersion, T: RangeBoundRequirements> WriteAsIsl<V> for IonSchemaRange<T> {
+impl<V: IslVersion, T: RangeBoundType> WriteAsIsl<V> for IonSchemaRange<T> {
     fn write_as_isl<W: ValueWriter>(
         &self,
         writer: W,
@@ -151,9 +156,7 @@ const MAX: &str = "max";
 const EXCLUSIVE: &str = "exclusive";
 const RANGE: &str = "range";
 
-impl<V: IslVersion, T: RangeBoundRequirements + ReadFromIsl<V>> ReadFromIsl<V>
-    for IonSchemaRange<T>
-{
+impl<V: IslVersion, T: RangeBoundType + ReadFromIsl<V>> ReadFromIsl<V> for IonSchemaRange<T> {
     fn try_read(ion: &Element, ctx: &LoaderContext<V>) -> IonSchemaResult<Self> {
         let optional_annotation = ion.one_optional_annotation()?;
         if optional_annotation == Some(RANGE) {
@@ -191,7 +194,7 @@ impl<V: IslVersion, T: RangeBoundRequirements + ReadFromIsl<V>> ReadFromIsl<V>
     }
 }
 
-impl<T: RangeBoundRequirements> From<&T> for IonSchemaRange<T> {
+impl<T: RangeBoundType> From<&T> for IonSchemaRange<T> {
     fn from(value: &T) -> Self {
         IonSchemaRange {
             min: Included(value.clone()),
@@ -199,7 +202,7 @@ impl<T: RangeBoundRequirements> From<&T> for IonSchemaRange<T> {
         }
     }
 }
-impl<T: RangeBoundRequirements> From<T> for IonSchemaRange<T> {
+impl<T: RangeBoundType> From<T> for IonSchemaRange<T> {
     fn from(value: T) -> Self {
         IonSchemaRange {
             min: Included(value.clone()),
@@ -208,16 +211,11 @@ impl<T: RangeBoundRequirements> From<T> for IonSchemaRange<T> {
     }
 }
 
-// Technically, the implementations this produces can construct empty ranges, which are not valid in
-// Ion Schema Language. This only affects programmatically constructed types. If we want to
-// completely prohibit empty ranges, it makes the programmatic builder a lot less ergonomic—e.g.:
-// ```
-// my_builder.timestamp_precision(Year..=Day)
-// my_builder.timestamp_precision((Year..=Day).try_into()?)
-// ```
+// TODO: Once https://github.com/amazon-ion/ion-schema/issues/140 is resolved, revisit this and
+//       possibly replace with a `TryFrom` implementation.
 macro_rules! from_range {
     ($range_type:ident) => {
-        impl<T: RangeBoundRequirements> From<$range_type<T>> for IonSchemaRange<T> {
+        impl<T: RangeBoundType> From<$range_type<T>> for IonSchemaRange<T> {
             fn from(value: $range_type<T>) -> Self {
                 let min = value.start_bound().cloned();
                 let max = value.end_bound().cloned();
