@@ -71,7 +71,7 @@ impl ValidateInternal for Utf8ByteLength {
                 self.into(),
                 value.clone(),
                 format!(
-                    "expected a UTF-8 encoded byte length of {}; found {length}",
+                    "expected a UTF-8 encoded byte length of {:?}; found {length}",
                     self.range
                 ),
             ));
@@ -112,6 +112,16 @@ mod tests {
 
     #[test]
     fn test_builder() -> IonSchemaResult<()> {
+        let type_ = TypeDefinitionBuilder::<ISL_1_0>::new()
+            .utf8_byte_length(5)
+            .build();
+        assert_eq!(
+            type_.constraints().cloned().collect::<Vec<_>>(),
+            vec![AnyConstraint::Utf8ByteLength(Utf8ByteLength::new(
+                IonSchemaRange::try_new(Bound::Included(5), Bound::Included(5))?
+            ))]
+        );
+
         let type_ = TypeDefinitionBuilder::<ISL_1_0>::new()
             .utf8_byte_length(1..10)
             .build();

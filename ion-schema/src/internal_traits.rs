@@ -79,13 +79,18 @@ pub(crate) trait WriteAsIsl<V: IslVersion>: Debug {
 /// In the future, it may include things such as:
 ///  - options to allow lossy conversion between ISL versions
 ///  - stylistic choices for writing as Ion
+#[derive(Copy, Clone, Debug)]
 pub(crate) struct WriteContext<V> {
     version: PhantomData<V>,
+    /// Indicates whether ranges may be "minimized" into single values.
+    /// E.g.: writing `range::[1, 1]` as `1`.
+    pub(crate) minimize_ranges: bool,
 }
 impl<V: IslVersion> WriteContext<V> {
     pub fn new() -> Self {
         WriteContext {
             version: PhantomData::<V>,
+            minimize_ranges: true,
         }
     }
 }
@@ -107,6 +112,8 @@ macro_rules! read_from_isl {
 }
 read_from_isl!(usize, expect_usize);
 read_from_isl!(i64, expect_i64);
+read_from_isl!(ion_rs::Decimal, expect_decimal);
+read_from_isl!(ion_rs::Timestamp, expect_timestamp);
 
 // TODO: fields/functions to support
 //    * looking up types/schemas that are already loaded

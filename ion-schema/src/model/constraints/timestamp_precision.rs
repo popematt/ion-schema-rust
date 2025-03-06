@@ -185,7 +185,7 @@ impl ValidateInternal for TimestampPrecision {
             return recorder.accept(ViolationInfo::new(
                 self.into(),
                 value.clone(),
-                format!("expected a timestamp precision of {range}; found {timestamp}",),
+                format!("expected a timestamp precision of {range:?}; found {timestamp:?}",),
             ));
         }
         ControlFlow::Continue(())

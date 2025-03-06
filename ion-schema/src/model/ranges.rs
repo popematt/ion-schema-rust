@@ -8,23 +8,22 @@ use crate::result::{
 };
 use crate::{isl_require, IslVersion};
 use hidden::RangeBoundType;
-use ion_rs::{Annotatable, Element, SequenceWriter, ValueWriter};
-use std::fmt::{Debug, Display, Formatter};
+use ion_rs::{Annotatable, Element, SequenceWriter, ValueWriter, WriteAsIon};
+use std::fmt::Debug;
 use std::ops::{
     Bound, Bound::*, Range, RangeBounds, RangeFrom, RangeInclusive, RangeTo, RangeToInclusive,
 };
 
 /// RangeBoundType is a marker trait that can only be implemented in this crate.
 mod hidden {
-    use ion_rs::WriteAsIon;
-    use std::fmt::{Debug, Display};
+    use std::fmt::Debug;
 
     pub trait RangeBoundType
     where
-        Self: PartialOrd + Debug + WriteAsIon + Clone + Display,
+        Self: PartialOrd + Debug + Clone,
     {
     }
-    impl<T> RangeBoundType for T where T: PartialOrd + Debug + WriteAsIon + Clone + Display {}
+    impl<T> RangeBoundType for T where T: PartialOrd + Debug + Clone {}
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -75,7 +74,9 @@ impl<T: RangeBoundType> IonSchemaRange<T> {
         };
         is_above_min && is_below_max
     }
+}
 
+impl<T> IonSchemaRange<T> {
     pub(crate) fn map_bounds<F: Fn(T) -> U, U: RangeBoundType>(
         self,
         transform: F,
@@ -88,65 +89,31 @@ impl<T: RangeBoundType> IonSchemaRange<T> {
     }
 }
 
-impl<T: RangeBoundType> Display for IonSchemaRange<T> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        format_range(&self.min, &self.max, f)
-    }
-}
-
-fn format_range<T: PartialEq + Display>(
-    min: &Bound<T>,
-    max: &Bound<T>,
-    f: &mut Formatter<'_>,
-) -> std::fmt::Result {
-    if min == max {
-        if let Included(value) = min {
-            return value.fmt(f);
-        }
-    }
-    f.write_str("range::[")?;
-    format_bound(min, "min", f)?;
-    f.write_str(",")?;
-    format_bound(max, "max", f)?;
-    f.write_str("]")
-}
-
-fn format_bound<T: Display>(
-    b: &Bound<T>,
-    unbounded_token: &str,
-    f: &mut Formatter<'_>,
-) -> std::fmt::Result {
-    match b {
-        Unbounded => f.write_str(unbounded_token),
-        Included(x) => x.fmt(f),
-        Excluded(x) => f.write_fmt(format_args!("exclusive::{}", x)),
-    }
-}
-
-impl<V: IslVersion, T: RangeBoundType> WriteAsIsl<V> for IonSchemaRange<T> {
+impl<V: IslVersion, T: RangeBoundType + WriteAsIon> WriteAsIsl<V> for IonSchemaRange<T> {
     fn write_as_isl<W: ValueWriter>(
         &self,
         writer: W,
         ctx: &WriteContext<V>,
     ) -> IonSchemaResult<()> {
-        if self.min == self.max {
+        if ctx.minimize_ranges && self.min == self.max {
             if let Included(value) = &self.min {
                 writer.write(value)?;
+                return Ok(());
             }
-        } else {
-            let mut list_writer = writer.with_annotations(["range"])?.list_writer()?;
-            match &self.min {
-                Excluded(x) => list_writer.write(x.annotated_with(["exclusive"]))?,
-                Included(x) => list_writer.write(x)?,
-                Unbounded => list_writer.write_symbol("min")?,
-            };
-            match &self.max {
-                Excluded(x) => list_writer.write(x.annotated_with(["exclusive"]))?,
-                Included(x) => list_writer.write(x)?,
-                Unbounded => list_writer.write_symbol("max")?,
-            };
-            list_writer.close()?;
         }
+        let mut list_writer = writer.with_annotations(["range"])?.list_writer()?;
+        match &self.min {
+            Excluded(x) => list_writer.write(x.annotated_with(["exclusive"]))?,
+            Included(x) => list_writer.write(x)?,
+            Unbounded => list_writer.write_symbol("min")?,
+        };
+        match &self.max {
+            Excluded(x) => list_writer.write(x.annotated_with(["exclusive"]))?,
+            Included(x) => list_writer.write(x)?,
+            Unbounded => list_writer.write_symbol("max")?,
+        };
+        list_writer.close()?;
+
         Ok(())
     }
 }
