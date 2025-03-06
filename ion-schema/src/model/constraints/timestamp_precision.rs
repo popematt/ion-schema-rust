@@ -13,11 +13,7 @@ use crate::{IonSchemaElement, IslVersion, ViolationInfo, ViolationRecorder};
 use ion_rs::{Element, IonResult, TimestampPrecision as TSPrecision, ValueWriter, WriteAsIon};
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::ControlFlow;
-
-// For brevity within this module.
 use TimestampPrecisionValue::*;
-// Associated constants still need to be qualified, even with a * import.
-use TimestampPrecisionValue as Tpv;
 
 /// Argument for the [TimestampPrecision] constraint.
 #[derive(Copy, Clone, Debug, PartialOrd, PartialEq)]
@@ -64,14 +60,14 @@ impl TimestampPrecisionValue {
 
     fn as_str(&self) -> &'static str {
         match self {
-            Year => Tpv::YEAR,
-            Month => Tpv::MONTH,
-            Day => Tpv::DAY,
-            Minute => Tpv::MINUTE,
-            Second => Tpv::SECOND,
-            Millisecond => Tpv::MILLIS,
-            Microsecond => Tpv::MICROS,
-            Nanosecond => Tpv::NANOS,
+            Year => TimestampPrecisionValue::YEAR,
+            Month => TimestampPrecisionValue::MONTH,
+            Day => TimestampPrecisionValue::DAY,
+            Minute => TimestampPrecisionValue::MINUTE,
+            Second => TimestampPrecisionValue::SECOND,
+            Millisecond => TimestampPrecisionValue::MILLIS,
+            Microsecond => TimestampPrecisionValue::MICROS,
+            Nanosecond => TimestampPrecisionValue::NANOS,
         }
     }
 }
@@ -79,14 +75,14 @@ impl TimestampPrecisionValue {
 impl<V: IslVersion> ReadFromIsl<V> for TimestampPrecisionValue {
     fn try_read(ion: &Element, ctx: &LoaderContext<V>) -> IonSchemaResult<Self> {
         match ion.as_symbol_text() {
-            Some(Tpv::YEAR) => Ok(Year),
-            Some(Tpv::MONTH) => Ok(Month),
-            Some(Tpv::DAY) => Ok(Day),
-            Some(Tpv::MINUTE) => Ok(Minute),
-            Some(Tpv::SECOND) => Ok(Second),
-            Some(Tpv::MILLIS) => Ok(Millisecond),
-            Some(Tpv::MICROS) => Ok(Microsecond),
-            Some(Tpv::NANOS) => Ok(Nanosecond),
+            Some(TimestampPrecisionValue::YEAR) => Ok(Year),
+            Some(TimestampPrecisionValue::MONTH) => Ok(Month),
+            Some(TimestampPrecisionValue::DAY) => Ok(Day),
+            Some(TimestampPrecisionValue::MINUTE) => Ok(Minute),
+            Some(TimestampPrecisionValue::SECOND) => Ok(Second),
+            Some(TimestampPrecisionValue::MILLIS) => Ok(Millisecond),
+            Some(TimestampPrecisionValue::MICROS) => Ok(Microsecond),
+            Some(TimestampPrecisionValue::NANOS) => Ok(Nanosecond),
             _ => invalid_schema_error(format!("not a valid timestamp precision value: {ion}")),
         }
     }
