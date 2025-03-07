@@ -226,7 +226,6 @@ mod tests {
     use ion_rs::v1_0::Text;
     use ion_rs::{Element, SequenceWriter, Writer};
     use rstest::rstest;
-
     // Most of the range logic is covered in IonSchemaRange test cases.
     // These primarily cover the things that are specific to timestamp precision.
     // Validation will be covered by ion-schema-tests
@@ -287,10 +286,33 @@ mod tests {
     #[case::year("nanosecond", TimestampPrecision::new_unchecked(Nanosecond))]
     #[case::year("range::[min, minute]", TimestampPrecision::new_unchecked(..=Minute))]
     #[case::year("range::[minute, max]", TimestampPrecision::new_unchecked(Minute..))]
+    #[case::year("range::[year, exclusive::minute]", TimestampPrecision::new_unchecked(Year..Minute))]
     fn timestamp_precision_try_read_ok(#[case] ion: &str, #[case] expected: TimestampPrecision) {
         let element = Element::read_one(ion).unwrap();
         let load_ctx = LoaderContext::<ISL_2_0>::new();
         let result = TimestampPrecision::try_read(&element, &load_ctx);
         assert_eq!(result, Ok(expected))
+    }
+
+    #[rstest]
+    #[case::cannot_use_min_outside_of_range("min")]
+    #[case::cannot_use_max_outside_of_range("max")]
+    #[case::single_precision_cannot_be_an_integer("0")]
+    #[case::precision_range_cannot_have_an_integer("range::[0, max]")]
+    #[case::range_may_not_be_repeated("range::range::[day, day]")]
+    #[case::no_extraneous_annotations("range::foo::[day, minute]")]
+    #[case::range_must_be_a_list("range::(day minute)")]
+    #[case::singleton_values_may_not_be_annotated("range::day")]
+    #[case::min_cannot_be_exclusive("range::[exclusive::min, day]")]
+    #[case::max_cannot_be_exclusive("range::[day, exclusive::max]")]
+    #[case::lower_bound_cannot_be_max("range::[max, day]")]
+    #[case::upper_bound_cannot_be_min("range::[day, min]")]
+    #[case::range_cannot_be_unbounded_at_both_ends("range::[min, max]")]
+    fn timestamp_precision_try_read_err(#[case] ion: &str) {
+        let element = Element::read_one(ion).unwrap();
+        let load_ctx = LoaderContext::<ISL_2_0>::new();
+        let result: IonSchemaResult<TimestampPrecision> =
+            TimestampPrecision::try_read(&element, &load_ctx);
+        assert!(result.is_err())
     }
 }
