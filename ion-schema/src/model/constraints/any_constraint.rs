@@ -8,21 +8,21 @@ use crate::{IonSchemaElement, IslVersion, ViolationRecorder};
 use ion_rs::ValueWriter;
 use std::ops::ControlFlow;
 
-macro_rules! any_of_these {
-    (#[$derives:meta] enum $super_:ident { $($name:ident,)+ }) => {
-        #[$derives]
-        pub enum $super_ {
+macro_rules! any_constraint {
+    ($($name:ident,)+) => {
+        #[derive(Debug, PartialEq, Clone)]
+        pub enum AnyConstraint {
             $($name($name)),*
         }
 
         $(
-        impl From<$name> for $super_ {
-            fn from(value: $name) -> Self { $super_::$name(value) }
+        impl From<$name> for AnyConstraint {
+            fn from(value: $name) -> Self { AnyConstraint::$name(value) }
         }
         )+
 
         // Any traits that should be implemented by delegating to the enum variants can be added here.
-        impl ValidateInternal for $super_ {
+        impl ValidateInternal for AnyConstraint {
             fn validate_internal<'top: 'call, 'call, R>(
                 &'top self,
                 value: &'top IonSchemaElement<'top>,
@@ -33,7 +33,7 @@ macro_rules! any_of_these {
                 R: ViolationRecorder<'top>,
             {
                 match self {
-                    $($super_::$name(constraint) => constraint.validate_internal(value, ctx, recorder),
+                    $(AnyConstraint::$name(constraint) => constraint.validate_internal(value, ctx, recorder),
                     )+
                 }
             }
@@ -46,7 +46,7 @@ macro_rules! any_of_these {
         {
             fn write_as_isl<W: ValueWriter>(&self, writer: W, ctx: &WriteContext<V>) -> IonSchemaResult<()> {
                 match self {
-                    $($super_::$name(constraint) => $name::write_as_isl(constraint, writer, ctx),
+                    $(AnyConstraint::$name(constraint) => $name::write_as_isl(constraint, writer, ctx),
                     )+
                 }
             }
@@ -55,89 +55,50 @@ macro_rules! any_of_these {
         impl AnyConstraint {
             pub(crate) const fn constraint_keyword(&self) -> &'static str {
                 match self {
-                    $($super_::$name(_) => $name::CONSTRAINT_NAME,
+                    $(AnyConstraint::$name(_) => $name::CONSTRAINT_NAME,
                     )+
                 }
             }
         }
-    }
-}
 
-any_of_these!(
-    #[derive(Debug, PartialEq, Clone)]
-    enum AnyConstraint {
-        // AllOf,
-        // AnnotationsV1,
-        AnnotationsV2Simple,
-        // AnnotationsV2Standard,
-        // AnyOf,
-        // ByteLength,
-        // CodepointLength,
-        // ContainerLength,
-        // Contains,
-        // ElementConstraint,
-        // Exponent,
-        // Fields,
-        // FieldNames,
-        // Ieee754Float,
-        // Not,
-        // OneOf,
-        // OrderedElements,
-        // Precision,
-        // Regex,
-        // Scale,
-        // TimestampOffset,
-        // TimestampPrecision,
-        TypeConstraint,
-        // Utf8ByteLength,
-        // ValidValues,
-    }
-);
-
-macro_rules! any_of_these_refs {
-    (#[$derives:meta] enum $super_:ident { $($name:ident,)+ }) => {
-        #[$derives]
-        pub enum $super_<'a> {
+        /// An enum over references to all types of constraints. See [`AnyConstraint`].
+        #[derive(Debug, PartialEq, Clone)]
+        pub enum AnyConstraintRef<'a> {
             $($name(&'a $name)),*
         }
 
         $(
-        impl<'a> From<&'a $name> for $super_<'a> {
-            fn from(value: &'a $name) -> Self { $super_::$name(value) }
+        impl<'a> From<&'a $name> for AnyConstraintRef<'a> {
+            fn from(value: &'a $name) -> Self { AnyConstraintRef::$name(value) }
         }
         )+
-
-        // Any traits that should be implemented by delegating to the enum variants can be added here.
     }
 }
 
-any_of_these_refs!(
-    #[derive(Debug, PartialEq, Clone)]
-    enum AnyConstraintRef {
-        // AllOf,
-        // AnnotationsV1,
-        AnnotationsV2Simple,
-        // AnnotationsV2Standard,
-        // AnyOf,
-        // ByteLength,
-        // CodepointLength,
-        // ContainerLength,
-        // Contains,
-        // ElementConstraint,
-        // Exponent,
-        // Fields,
-        // FieldNames,
-        // Ieee754Float,
-        // Not,
-        // OneOf,
-        // OrderedElements,
-        // Precision,
-        // Regex,
-        // Scale,
-        // TimestampOffset,
-        // TimestampPrecision,
-        TypeConstraint,
-        // Utf8ByteLength,
-        // ValidValues,
-    }
+any_constraint!(
+    // AllOf,
+    // AnnotationsV1,
+    AnnotationsV2Simple,
+    // AnnotationsV2Standard,
+    // AnyOf,
+    // ByteLength,
+    // CodepointLength,
+    // ContainerLength,
+    // Contains,
+    // ElementConstraint,
+    // Exponent,
+    // Fields,
+    // FieldNames,
+    // Ieee754Float,
+    // Not,
+    // OneOf,
+    // OrderedElements,
+    // Precision,
+    // Regex,
+    // Scale,
+    // TimestampOffset,
+    TimestampPrecision,
+    TypeConstraint,
+    Utf8ByteLength,
+    // ValidValues,
 );

@@ -1,6 +1,6 @@
 use crate::ion_path::IonPath;
 use crate::violation::{Violation, ViolationCode};
-use ion_rs::{Element, IonType, Struct};
+use ion_rs::{Element, IonType, Struct, Timestamp};
 use std::fmt::{Display, Formatter};
 
 /// Extends [IonType] by adding a "Document" variant for Ion Schema.
@@ -85,6 +85,15 @@ pub struct IonSchemaElement<'a> {
     content: IonSchemaElementKind<'a>,
 }
 
+/// Macro for delegating `as_*` functions to [`Element`].
+macro_rules! as_value {
+    ($fun:ident() -> $t:ty) => {
+        pub(crate) fn $fun(&self) -> Option<$t> {
+            self.as_element().and_then(Element::$fun)
+        }
+    };
+}
+
 impl<'a> IonSchemaElement<'a>
 where
     Self: 'a,
@@ -95,13 +104,6 @@ where
                 .as_sequence()
                 .map(|s| AsRef::<[Element]>::as_ref(s).iter()),
             IonSchemaElementKind::Document(d) => Some(d.iter()),
-        }
-    }
-
-    pub(crate) fn as_struct(&'a self) -> Option<&'a Struct> {
-        match self.content {
-            IonSchemaElementKind::SingleElement(e) => e.as_struct(),
-            _ => None,
         }
     }
 
@@ -165,6 +167,10 @@ where
             }
         }
     }
+
+    as_value!(as_timestamp() -> Timestamp);
+    as_value!(as_struct() -> &Struct);
+    as_value!(as_text() -> &str);
 }
 
 impl Display for IonSchemaElement<'_> {

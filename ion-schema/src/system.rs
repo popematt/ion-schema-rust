@@ -173,7 +173,7 @@ impl PendingTypes {
         import_type_name: &str,
         type_store: &mut TypeStore,
     ) -> Option<IonSchemaResult<TypeDefinitionImpl>> {
-        return match self.ids_by_name.get(import_type_name) {
+        match self.ids_by_name.get(import_type_name) {
             Some(id) => self.types_by_id[*id]
                 .to_owned()
                 .map(|type_def| match type_def {
@@ -211,7 +211,7 @@ impl PendingTypes {
                     None => None,
                 }
             }
-        };
+        }
     }
 
     // helper method to update type store with all the types from this PendingTypes
