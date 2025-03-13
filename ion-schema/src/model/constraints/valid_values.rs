@@ -267,7 +267,8 @@ mod tests {
         );
     }
 
-    test_harness!(write_as_isl:
+    test_harness!(
+        use write_as_isl;
         ISL_1_0, ISL_2_0 {
             #[case::empty(
                 Ok("[]"),
@@ -313,7 +314,7 @@ mod tests {
     );
 
     test_harness!(
-        read_from_isl:
+        use read_from_isl;
         ISL_1_0, ISL_2_0 {
             #[case::empty("[]", Ok(ValidValues { values: vec![] }))]
             #[case::empty_list_annotated_with_range("range::[]", err::<ValidValues>())]

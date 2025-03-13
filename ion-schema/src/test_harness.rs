@@ -22,32 +22,48 @@ use std::fmt::Debug;
 /// To be compatible with this test harness, the last parameter of the test function must be a
 /// `PhantomData<V: IslVersion>`.
 ///
+/// This macro makes uses the "Incremental TT Muncher" pattern to create a cartesian product of ISL
+/// versions and test case inputs. See https://veykril.github.io/tlborm/decl-macros/patterns/tt-muncher.html
+/// for details about this pattern.
+///
+/// Steps/Cases:
+///   1. The entry point—this sets up the enclosing module, and matches all the "case groups" (a
+///      set of ISL versions and a set of test cases for those versions). Each matched case group
+///      is handed off to the version muncher (step 2).
+///   2. For a given case group, the first ISL version _and_ all the test case inputs are passed to
+///      step 3. The remaining ISL versions _and_ all test case inputs are passed to a recursive
+///      invocation of the version muncher. If there are no more ISL versions left to match, then it
+///      will match step 2B, ending the recursion. In essence, this is loop over the ISL versions,
+///      implemented using tail recursion (the opposite of tail-call loop optimization).
+///   3. For a given ISL version, emits a `#[test]` function for each test-case input.
 ///
 macro_rules! test_harness {
-    // The entry point for the macro.
-    ($test:ident: $($versions:ident),+ { $(#[case::$case_name:ident($($arg:expr),+)])+ }$(;$($tt:tt)*)?) => {
+    // STEP 1
+    (use $test:ident; $( $($versions:ident),+ { $(#[case::$case_name:ident($($args:expr),+)])+ } )+) => {
         #[cfg(test)]
         paste::paste!(
             mod [<test_ $test>] {
                 use super::*;
                 use paste::paste;
-                use crate::test_harness::$test as the_test_fn;
+                use $test as the_test_fn;
 
-                test_harness!(__goto__ __loop__: $($versions),* {$(#[case::$case_name($($arg),+)])+} $(;$($tt)*)?);
+                $(
+                test_harness!(@munch_version $($versions),+ { $(#[case::$case_name($($args),+)])+} );
+                )+
             }
         );
     };
-    (__goto__ __loop__: $version:ident $(,$other_versions:ident)* { $(#[case::$case_name:ident($($args:expr),+)])+ }$(;$($tt:tt)*)?) => {
-        test_harness!(__goto__ __emitfn__: $($case_name, $version, $($args),+)+);
-        test_harness!(__goto__ __loop__: $($other_versions),* { $(#[case::$case_name($($args),+)])+ $(;$($tt)*)?} );
+    // STEP 2A
+    (@munch_version $version:ident $(,$other_versions:ident)* { $(#[case::$case_name:ident($($args:expr),+)])+ }) => {
+        test_harness!(@emit_fn $($case_name, $version, $($args),+)+);
+        test_harness!(@munch_version $($other_versions),* { $(#[case::$case_name($($args),+)])+} );
     };
-    (__goto__ __loop__: { $(#[case::$case_name:ident($($args:expr),+)])+ }$(;$($tt:tt)*)?) => {
-        test_harness!(__goto__ __loop__: $($($tt)*)?);
+    // STEP 2B
+    (@munch_version { $(#[case::$case_name:ident($($args:expr),+)])+ }) => {
+        // No more versions; end the version munching
     };
-    (__goto__ __loop__:) => {
-        // No more groups
-    };
-    (__goto__ __emitfn__: $($case_name:ident, $version:ident, $($args:expr),+)+) => {
+    // STEP 3
+    (@emit_fn $($case_name:ident, $version:ident, $($args:expr),+)+) => {
         paste!(
             $(
             #[test]
@@ -56,7 +72,7 @@ macro_rules! test_harness {
             }
             )+
         );
-    }
+    };
 }
 pub(crate) use test_harness;
 
