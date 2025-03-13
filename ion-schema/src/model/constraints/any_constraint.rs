@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::internal_traits::{ValidateInternal, ValidationContext, WriteAsIsl, WriteContext};
+use crate::model::constraints::valid_values::ValidValues;
 use crate::model::constraints::*;
 use crate::result::IonSchemaResult;
 use crate::{IonSchemaElement, IslVersion, ViolationRecorder};
@@ -100,5 +101,5 @@ any_constraint!(
     TimestampPrecision,
     TypeConstraint,
     Utf8ByteLength,
-    // ValidValues,
+    ValidValues,
 );

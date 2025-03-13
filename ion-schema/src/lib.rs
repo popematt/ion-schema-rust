@@ -43,6 +43,9 @@ mod violation_recorder;
 
 pub mod model;
 
+#[cfg(test)]
+mod test_harness;
+
 pub use ion_schema_element::*;
 pub use ion_schema_version::*;
 pub use violation_recorder::*;
