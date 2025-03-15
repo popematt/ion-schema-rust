@@ -126,24 +126,20 @@ impl<'a> ViolationRecorder<'a> for Vec<ViolationInfo<'a>> {
 
 #[cfg(test)]
 mod tests {
-    use crate::model::constraints::AnyConstraintRef;
+    use crate::model::constraints::{AnyConstraintRef, ContainerLength};
     use crate::violation_recorder::{ViolationInfo, ViolationRecorder};
-    use crate::{model, IonSchemaElement};
+    use crate::IonSchemaElement;
     use ion_rs::Element;
-    use model::constraints::{AnnotationsV2Modifier, AnnotationsV2Simple};
     use std::ops::ControlFlow;
 
     #[test]
     fn impl_violation_recorder_for_vec_violation_info() {
         let mut recorder: Vec<ViolationInfo> = vec![];
 
-        let constraint = AnnotationsV2Simple {
-            modifier: AnnotationsV2Modifier::Closed,
-            annotations: vec![],
-        };
+        let constraint = ContainerLength::new(1..);
         let element = Element::string("hello world");
         let vi = ViolationInfo::new(
-            AnyConstraintRef::AnnotationsV2Simple(&constraint),
+            AnyConstraintRef::ContainerLength(&constraint),
             IonSchemaElement::from(&element),
             "fake violation".to_string(),
         );
@@ -161,13 +157,10 @@ mod tests {
     fn impl_violation_recorder_for_option_violation_info() {
         let mut recorder: Option<ViolationInfo> = None;
 
-        let constraint = AnnotationsV2Simple {
-            modifier: AnnotationsV2Modifier::Closed,
-            annotations: vec![],
-        };
+        let constraint = ContainerLength::new(1..);
         let element = Element::string("hello world");
         let mut vi = ViolationInfo::new(
-            AnyConstraintRef::AnnotationsV2Simple(&constraint),
+            AnyConstraintRef::ContainerLength(&constraint),
             IonSchemaElement::from(&element),
             "fake violation".to_string(),
         );

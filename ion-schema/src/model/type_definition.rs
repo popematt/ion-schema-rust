@@ -23,6 +23,10 @@ pub struct TypeDefinition {
 }
 
 impl TypeDefinition {
+    pub fn builder<V: IslVersion>() -> TypeDefinitionBuilder<V> {
+        TypeDefinitionBuilder::new()
+    }
+
     pub(crate) fn new(
         constraints: Bag<AnyConstraint>,
         open_content: Bag<(Symbol, IonData<Element>)>,

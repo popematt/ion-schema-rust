@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 mod all_of;
-mod annotations_v2_simple;
+mod annotations;
 mod any_constraint;
 mod any_of;
 mod byte_length;
@@ -33,7 +33,7 @@ use ion_rs::Element;
 use std::fmt::Debug;
 
 pub use all_of::*;
-pub use annotations_v2_simple::*;
+pub use annotations::*;
 pub use any_constraint::*;
 pub use any_of::*;
 pub use byte_length::*;

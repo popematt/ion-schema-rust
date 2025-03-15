@@ -3,11 +3,12 @@
 
 use crate::internal_traits::*;
 use crate::ion_extension::SymbolExtensions;
+use crate::model::constraints::annotations::AnnotationsVariant;
 use crate::model::constraints::AnnotationsV2Modifier::{Closed, ClosedAndRequired, Required};
-use crate::model::constraints::{ConstraintName, ReadConstraint};
+use crate::model::constraints::{Annotations, ReadConstraint};
 use crate::model::TypeDefinitionBuilder;
 use crate::result::{invalid_schema_error, invalid_schema_error_raw, IonSchemaResult};
-use crate::{IonSchemaElement, ViolationInfo, ViolationRecorder, ISL_1_0, ISL_2_0};
+use crate::{IonSchemaElement, ISL_1_0, ISL_2_0};
 use ion_rs::{Element, Symbol, ValueWriter};
 use std::ops::ControlFlow;
 
@@ -30,25 +31,14 @@ impl AnnotationsV2Modifier {
 /// Represents the [annotations] constraint, simple syntax, in Ion Schema 2.0
 ///
 /// [annotations]: https://amazon-ion.github.io/ion-schema/docs/isl-2-0/spec#annotations
-///
-/// TODO: Merge with other annotations constraints to form an enum
-/// enum Annotations {
-///     AnnotationsV1(...),
-///     AnnotationsV2Simple(...),
-///     AnnotationsV2Standard(...),
-/// }
-///
 #[derive(Debug, PartialEq, Clone)]
 pub struct AnnotationsV2Simple {
-    pub(crate) modifier: AnnotationsV2Modifier,
-    pub(crate) annotations: Vec<Symbol>,
+    modifier: AnnotationsV2Modifier,
+    annotations: Vec<Symbol>,
 }
 
 impl AnnotationsV2Simple {
-    pub(crate) fn new<T: Into<Symbol>>(
-        modifier: AnnotationsV2Modifier,
-        annotations: Vec<T>,
-    ) -> Self {
+    fn new<T: Into<Symbol>>(modifier: AnnotationsV2Modifier, annotations: Vec<T>) -> Self {
         Self {
             modifier,
             annotations: annotations.into_iter().map(|it| it.into()).collect(),
@@ -61,45 +51,21 @@ impl AnnotationsV2Simple {
     pub fn annotations(&self) -> &[Symbol] {
         self.annotations.as_slice()
     }
-}
 
-impl ConstraintName for AnnotationsV2Simple {
-    const CONSTRAINT_NAME: &'static str = "annotations";
-}
-
-impl TypeDefinitionBuilder<ISL_2_0> {
-    /// Adds an Ion Schema 2.0 `annotations` constraint using the simple syntax.
-    ///
-    /// For standard syntax, see [annotations_type].
-    pub fn annotations<S: Into<Symbol>, T: IntoIterator<Item = S>>(
-        self,
-        modifier: AnnotationsV2Modifier,
-        annotations: T,
-    ) -> Self {
-        let constraint = AnnotationsV2Simple {
-            modifier,
-            annotations: annotations.into_iter().map(Into::into).collect(),
-        };
-        self.with_constraint(constraint.into())
-    }
-}
-
-impl ValidateInternal for AnnotationsV2Simple {
-    fn validate_internal<'top: 'call, 'call, R>(
+    pub(super) fn validate_internal<'top: 'call, 'call, R>(
         &'top self,
         value: &IonSchemaElement<'top>,
         ctx: &ValidationContext,
         recorder: &'call mut R,
     ) -> ControlFlow<()>
     where
-        R: ViolationRecorder<'top>,
+        R: FnMut(IonSchemaElement<'top>, String) -> ControlFlow<()>,
     {
         let Some(element) = value.as_element() else {
-            return recorder.accept(ViolationInfo::new(
-                self.into(),
+            return recorder(
                 value.clone(),
                 "document type is always invalid for annotations constraint".to_string(),
-            ));
+            );
         };
 
         let actual_annotations: Vec<&Symbol> = element.annotations().iter().collect();
@@ -112,11 +78,10 @@ impl ValidateInternal for AnnotationsV2Simple {
                 }
             }
             if !extra_anns.is_empty() {
-                recorder.accept(ViolationInfo::new(
-                    self.into(),
+                recorder(
                     value.clone(),
                     format!("Unexpected extra annotations: {:?}", extra_anns),
-                ))?
+                )?
             }
         }
         if self.modifier.is_required() {
@@ -127,14 +92,56 @@ impl ValidateInternal for AnnotationsV2Simple {
                 }
             }
             if !missing_annotations.is_empty() {
-                recorder.accept(ViolationInfo::new(
-                    self.into(),
+                recorder(
                     value.clone(),
                     format!("Missing required annotations: {:?}", missing_annotations),
-                ))?
+                )?
             }
         }
         ControlFlow::Continue(())
+    }
+}
+
+impl TypeDefinitionBuilder<ISL_2_0> {
+    /// Adds an annotations constraint to the type definition using Ion Schema 2.0 simple annotation syntax.
+    ///
+    /// This method creates an annotations constraint that validates the presence and/or absence of
+    /// annotations on Ion values. It supports Ion Schema 2.0's annotation modifiers for more
+    /// fine-grained control over annotation validation.
+    ///
+    /// # Arguments
+    /// * `modifier` - An [`AnnotationsV2Modifier`] that specifies how the annotations should be applied
+    ///               (e.g., required, closed, or both)
+    /// * `annotations` - An iterable collection of items that can be converted into [`Symbol`],
+    ///                  representing the annotation names
+    ///
+    /// # Returns
+    /// * Returns `Self` to allow for method chaining in the builder pattern
+    ///
+    /// # Examples
+    /// ```
+    /// # use ion_schema::ISL_2_0;
+    /// # use ion_schema::model::TypeDefinition;
+    /// use ion_schema::model::constraints::AnnotationsV2Modifier::*;
+    /// let type_def = TypeDefinition::builder::<ISL_2_0>()
+    ///     .annotations(Closed, ["foo", "bar"])
+    ///     .build();
+    /// ```
+    pub fn annotations<S: Into<Symbol>, T: IntoIterator<Item = S>>(
+        self,
+        modifier: AnnotationsV2Modifier,
+        annotations: T,
+    ) -> Self {
+        let constraint = AnnotationsV2Simple {
+            modifier,
+            annotations: annotations.into_iter().map(Into::into).collect(),
+        };
+        self.with_constraint(
+            Annotations {
+                variant: AnnotationsVariant::V2Simple(constraint),
+            }
+            .into(),
+        )
     }
 }
 
