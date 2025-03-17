@@ -9,7 +9,7 @@ use crate::model::constraints::{ConstraintName, ReadConstraint};
 use crate::model::type_argument::TypeArgument;
 use crate::model::TypeDefinitionBuilder;
 use crate::result::{invalid_schema_error_raw, IonSchemaResult};
-use crate::{IonSchemaElement, IslVersion, ViolationRecorder};
+use crate::{IonSchemaElement, IslVersion, Versioned, ViolationRecorder};
 use ion_rs::{Element, ValueWriter};
 use regex::RegexBuilder;
 use std::marker::PhantomData;
@@ -19,36 +19,96 @@ impl ConstraintName for Regex {
     const CONSTRAINT_NAME: &'static str = "regex";
 }
 
-#[derive(Copy, Clone, PartialEq, Debug)]
-pub struct RegexOptions<V: IslVersion> {
+/// Builder for regular expressions in Ion Schema.
+#[derive(Clone, PartialEq, Debug)]
+pub struct IonSchemaRegexBuilder<V: IslVersion> {
     // The `V` type parameter allows us to safely add new fields in new Ion Schema
     // versions without breaking compatibility.
     _version: PhantomData<V>,
     case_insensitive: bool,
     multiline: bool,
+    pattern: String,
 }
-impl<V: IslVersion> RegexOptions<V> {
-    fn new() -> Self {
-        RegexOptions {
+impl<V: IslVersion> IonSchemaRegexBuilder<V> {
+    pub fn new(pattern: &str) -> Self {
+        Self {
             _version: Default::default(),
             case_insensitive: false,
             multiline: false,
+            pattern: String::from(pattern),
         }
     }
 
-    fn case_insensitive(mut self, yes: bool) -> Self {
+    pub fn case_insensitive(mut self, yes: bool) -> Self {
         self.case_insensitive = yes;
         self
     }
 
-    fn multiline(mut self, yes: bool) -> Self {
+    pub fn multiline(mut self, yes: bool) -> Self {
         self.multiline = yes;
         self
     }
+
+    pub fn build(self) -> IonSchemaResult<Versioned<Regex, V>> {
+        // TODO: Clean up the different IslVersion representations
+        let version = match V::MAJOR_MINOR {
+            (1, 0) => crate::isl::IslVersion::V1_0,
+            (2, 0) => crate::isl::IslVersion::V2_0,
+            _ => unreachable!(),
+        };
+
+        // Apply ISL specific regex validation
+        let pattern = RegexConstraint::convert_to_pattern(self.pattern, version)?;
+
+        // Check that `regex::Regex` won't return any errors with this pattern.
+        let regex = RegexBuilder::new(pattern.as_str())
+            .build()
+            .map_err(|e| invalid_schema_error_raw(format!("Invalid regex: {pattern}")))?;
+
+        let constraint = Regex {
+            regex,
+            multiline: self.multiline,
+            case_insensitive: self.case_insensitive,
+        };
+
+        Ok(Versioned::new(constraint))
+    }
 }
-impl<V: IslVersion> From<()> for RegexOptions<V> {
-    fn from(value: ()) -> Self {
-        RegexOptions::new()
+
+/// Trait for something that can be used to create a new [`IonSchemaRegexBuilder`].
+pub trait IonSchemaRegexSource<V: IslVersion>
+where
+    Self: Sized,
+{
+    fn to_regex_builder(self) -> IonSchemaRegexBuilder<V>;
+    fn build_regex(self) -> IonSchemaResult<Versioned<Regex, V>> {
+        self.to_regex_builder().build()
+    }
+}
+
+impl<V: IslVersion, S: AsRef<str>> IonSchemaRegexSource<V> for S {
+    fn to_regex_builder(self) -> IonSchemaRegexBuilder<V> {
+        IonSchemaRegexBuilder::new(self.as_ref())
+    }
+}
+
+impl<V: IslVersion> IonSchemaRegexSource<V> for IonSchemaRegexBuilder<V> {
+    fn to_regex_builder(self) -> IonSchemaRegexBuilder<V> {
+        self
+    }
+}
+
+impl<V: IslVersion> IonSchemaRegexSource<V> for Versioned<Regex, V> {
+    fn to_regex_builder(self) -> IonSchemaRegexBuilder<V> {
+        IonSchemaRegexBuilder {
+            _version: Default::default(),
+            case_insensitive: self.case_insensitive,
+            multiline: self.multiline,
+            pattern: self.regex.to_string(),
+        }
+    }
+    fn build_regex(self) -> IonSchemaResult<Versioned<Regex, V>> {
+        Ok(self)
     }
 }
 
@@ -65,6 +125,7 @@ pub struct Regex {
 
 impl PartialEq for Regex {
     fn eq(&self, other: &Self) -> bool {
+        // We have to manually implement `PartialEq` because `regex::Regex` does not implement it.
         self.regex.as_str() == other.regex.as_str()
             && self.case_insensitive == other.case_insensitive
             && self.multiline == other.multiline
@@ -72,45 +133,34 @@ impl PartialEq for Regex {
 }
 
 impl Regex {
-    pub fn try_new<T: Into<String>, V: IslVersion>(
-        multiline: bool,
-        case_insensitive: bool,
-        pattern: T,
-    ) -> IonSchemaResult<Self> {
-        // TODO: Clean up the different IslVersion representations
-        let version = match V::MAJOR_MINOR {
-            (1, 0) => crate::isl::IslVersion::V1_0,
-            (2, 0) => crate::isl::IslVersion::V2_0,
-            _ => unreachable!(),
-        };
-
-        let pattern = RegexConstraint::convert_to_pattern(pattern.into(), version)?;
-
-        let regex = RegexBuilder::new(pattern.as_str())
+    fn new<V: IslVersion>(builder: IonSchemaRegexBuilder<V>) -> Self {
+        let regex = RegexBuilder::new(builder.pattern.as_str())
             // TODO: See if this would fix https://github.com/amazon-ion/ion-rust/issues/399
             //.crlf(true)
-            .case_insensitive(case_insensitive)
-            .multi_line(multiline)
+            .case_insensitive(builder.case_insensitive)
+            .multi_line(builder.multiline)
             .build()
-            .map_err(|e| invalid_schema_error_raw(format!("Invalid regex: {pattern}")))?;
+            .expect("Regex should be valid because it was checked in IonSchemaRegex");
 
-        Ok(Self {
+        Self {
             regex,
-            multiline,
-            case_insensitive,
-        })
+            multiline: builder.multiline,
+            case_insensitive: builder.case_insensitive,
+        }
     }
 }
 
 impl<V: IslVersion> TypeDefinitionBuilder<V> {
-    pub fn regex<T: Into<String>, O: Into<RegexOptions<V>>>(self, opts: O, pattern: T) -> Self {
-        // TODO: Decide how to handle fallible builder methods, then get rid of the "unwrap".
-        //       1. We could make builder methods return IonSchemaResult<Self>
-        //       2. We could make the builder save Errs, and then surface them when calling `build()`.
-        let opts = opts.into();
-        let constraint =
-            Regex::try_new::<_, V>(opts.multiline, opts.case_insensitive, pattern).unwrap();
-        self.with_constraint(constraint.into())
+    /// Adds a `regex` constraint to the type being built.
+    ///
+    /// This will panic if the input is invalid. For a safe alternative, see [`Self::try_regex`].
+    pub fn regex(self, regex: impl IonSchemaRegexSource<V>) -> Self {
+        self.with_constraint(Versioned::into_inner(regex.build_regex().unwrap()).into())
+    }
+
+    /// Adds a `regex` constraint to the type being built.
+    pub fn try_regex(self, regex: impl IonSchemaRegexSource<V>) -> IonSchemaResult<Self> {
+        Ok(self.with_constraint(Versioned::into_inner(regex.build_regex()?).into()))
     }
 }
 
@@ -155,51 +205,101 @@ mod tests {
 
     #[test]
     fn test_builder() {
+        let type_ = TypeDefinitionBuilder::<ISL_1_0>::new().regex("abc").build();
+
+        assert_eq!(
+            type_.constraints().cloned().collect::<Vec<_>>(),
+            vec![AnyConstraint::Regex(Regex {
+                regex: regex::Regex::new("abc").unwrap(),
+                multiline: false,
+                case_insensitive: false,
+            })]
+        );
+
+        let my_regex = IonSchemaRegexBuilder::new("abc")
+            .case_insensitive(true)
+            .multiline(true)
+            .build()
+            .unwrap();
         let type_ = TypeDefinitionBuilder::<ISL_1_0>::new()
-            .regex((), "abc")
+            .regex(my_regex)
             .build();
 
         assert_eq!(
             type_.constraints().cloned().collect::<Vec<_>>(),
-            vec![AnyConstraint::Regex(
-                Regex::try_new::<_, ISL_1_0>(false, false, "abc").unwrap()
-            )]
+            vec![AnyConstraint::Regex(Regex {
+                regex: RegexBuilder::new("abc")
+                    .case_insensitive(true)
+                    .multi_line(true)
+                    .build()
+                    .unwrap(),
+                multiline: true,
+                case_insensitive: true,
+            })]
         );
 
         let type_ = TypeDefinitionBuilder::<ISL_1_0>::new()
             .regex(
-                RegexOptions::new().case_insensitive(true).multiline(true),
-                "abc",
+                "abc"
+                    .to_regex_builder()
+                    .case_insensitive(true)
+                    .multiline(true),
             )
             .build();
 
         assert_eq!(
             type_.constraints().cloned().collect::<Vec<_>>(),
-            vec![AnyConstraint::Regex(
-                Regex::try_new::<_, ISL_1_0>(true, true, "abc").unwrap()
-            )]
+            vec![AnyConstraint::Regex(Regex {
+                regex: RegexBuilder::new("abc")
+                    .case_insensitive(true)
+                    .multi_line(true)
+                    .build()
+                    .unwrap(),
+                multiline: true,
+                case_insensitive: true,
+            })]
         )
     }
 
     #[test]
     fn test_partial_eq() {
-        let regex_constraint = Regex::try_new::<_, ISL_1_0>(true, true, "abc");
+        let regex_constraint = Regex {
+            regex: regex::Regex::new("abc").unwrap(),
+            multiline: true,
+            case_insensitive: true,
+        };
 
         assert_eq!(
             regex_constraint,
-            Regex::try_new::<_, ISL_1_0>(true, true, "abc")
+            Regex {
+                regex: regex::Regex::new("abc").unwrap(),
+                multiline: true,
+                case_insensitive: true,
+            }
         );
         assert_ne!(
             regex_constraint,
-            Regex::try_new::<_, ISL_1_0>(false, true, "abc")
+            Regex {
+                regex: regex::Regex::new("abc").unwrap(),
+                multiline: true,
+                case_insensitive: false,
+            }
         );
         assert_ne!(
             regex_constraint,
-            Regex::try_new::<_, ISL_1_0>(true, false, "abc")
+            Regex {
+                regex: regex::Regex::new("abc").unwrap(),
+                multiline: false,
+                case_insensitive: true,
+            }
         );
         assert_ne!(
             regex_constraint,
-            Regex::try_new::<_, ISL_1_0>(true, true, "def")
+            Regex {
+                regex: regex::Regex::new("def").unwrap(),
+                multiline: true,
+                case_insensitive: true,
+            }
         );
     }
 }

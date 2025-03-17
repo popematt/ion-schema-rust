@@ -8,7 +8,8 @@ use crate::model::constraints::{ConstraintName, ReadConstraint};
 use crate::model::TypeDefinitionBuilder;
 use crate::result::IonSchemaResult;
 use crate::{IonSchemaElement, IslVersion, ViolationRecorder};
-use ion_rs::{Element, ValueWriter};
+use ion_rs::{Element, IonData, ValueWriter};
+use std::collections::HashSet;
 use std::ops::ControlFlow;
 
 impl ConstraintName for Contains {
@@ -21,18 +22,18 @@ impl ConstraintName for Contains {
 /// [ISL 2.0]: https://amazon-ion.github.io/ion-schema/docs/isl-2-0/spec#contains
 #[derive(Debug, PartialEq, Clone)]
 pub struct Contains {
-    values: Vec<Element>,
+    values: HashSet<IonData<Element>>,
 }
 
 impl Contains {
     pub(crate) fn new<T: IntoIterator<Item = Element>>(values: T) -> Self {
         Self {
-            values: values.into_iter().collect(),
+            values: values.into_iter().map(IonData::from).collect(),
         }
     }
 
-    pub fn values(&self) -> &[Element] {
-        &self.values
+    pub fn values(&self) -> impl Iterator<Item = &Element> {
+        self.values.iter().map(IonData::as_ref)
     }
 }
 
@@ -70,5 +71,37 @@ impl<V: IslVersion> WriteAsIsl<V> for Contains {
 impl<V: IslVersion> ReadConstraint<V> for Contains {
     fn read_constraint(ion: &Element, ctx: &LoaderContext<V>) -> IonSchemaResult<Option<Self>> {
         todo!()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::model::constraints::{AnyConstraint, Contains};
+    use crate::model::TypeDefinitionBuilder;
+    use crate::ISL_1_0;
+    use ion_rs::{Element, IonData};
+
+    #[test]
+    fn test_builder() {
+        let type_ = TypeDefinitionBuilder::<ISL_1_0>::new()
+            .contains([
+                Element::boolean(true),
+                Element::int(1),
+                Element::string("abc"),
+            ])
+            .build();
+
+        assert_eq!(
+            type_.constraints().cloned().collect::<Vec<_>>(),
+            vec![AnyConstraint::Contains(Contains {
+                values: [
+                    IonData::from(Element::boolean(true)),
+                    IonData::from(Element::int(1)),
+                    IonData::from(Element::string("abc")),
+                ]
+                .into_iter()
+                .collect(),
+            })]
+        );
     }
 }

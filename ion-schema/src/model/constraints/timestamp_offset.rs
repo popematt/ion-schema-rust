@@ -6,9 +6,10 @@ use crate::internal_traits::{
 };
 use crate::model::constraints::{ConstraintName, ReadConstraint};
 use crate::model::TypeDefinitionBuilder;
-use crate::result::{IonSchemaError, IonSchemaResult};
+use crate::result::{invalid_schema_error, IonSchemaError, IonSchemaResult};
 use crate::{IonSchemaElement, IslVersion, ViolationRecorder};
 use ion_rs::{Element, ValueWriter};
+use std::collections::HashSet;
 use std::ops::ControlFlow;
 
 impl ConstraintName for TimestampOffset {
@@ -21,14 +22,14 @@ impl ConstraintName for TimestampOffset {
 /// [ISL 2.0]: https://amazon-ion.github.io/ion-schema/docs/isl-2-0/spec#timestamp_offset
 #[derive(Debug, Clone, PartialEq)]
 pub struct TimestampOffset {
-    // TODO: Replace this Vec with a Set, or sort the vec upon construction
-    values: Vec<TimestampOffsetValue>,
+    values: HashSet<TimestampOffsetValue>,
 }
 
 impl TimestampOffset {
-    pub(crate) fn new<T: IntoIterator<Item = TimestampOffsetValue>>(values: T) -> Self {
-        let values = values.into_iter().collect();
-        Self { values }
+    fn new(values: Vec<TimestampOffsetValue>) -> Self {
+        Self {
+            values: values.into_iter().collect(),
+        }
     }
 
     pub fn values(&self) -> impl Iterator<Item = &TimestampOffsetValue> {
@@ -37,9 +38,29 @@ impl TimestampOffset {
 }
 
 impl<V: IslVersion> TypeDefinitionBuilder<V> {
-    pub fn timestamp_offset<T: IntoIterator<Item = TimestampOffsetValue>>(self, values: T) -> Self {
-        let constraint = TimestampOffset::new(values);
+    pub fn timestamp_offset<
+        T: TryInto<TimestampOffsetValue, Error = IonSchemaError>,
+        I: IntoIterator<Item = T>,
+    >(
+        self,
+        values: I,
+    ) -> Self {
+        let values: IonSchemaResult<Vec<_>> =
+            values.into_iter().map(|value| value.try_into()).collect();
+        let constraint = TimestampOffset::new(values.unwrap());
         self.with_constraint(constraint.into())
+    }
+
+    pub fn try_timestamp_offset<
+        I: IntoIterator<Item = impl TryInto<TimestampOffsetValue, Error = IonSchemaError>>,
+    >(
+        self,
+        values: I,
+    ) -> IonSchemaResult<Self> {
+        let values: IonSchemaResult<Vec<_>> =
+            values.into_iter().map(|value| value.try_into()).collect();
+        let constraint = TimestampOffset::new(values?);
+        Ok(self.with_constraint(constraint.into()))
     }
 }
 
@@ -75,7 +96,7 @@ impl<V: IslVersion> ReadConstraint<V> for TimestampOffset {
 
 /// Represent a timestamp offset
 /// Known timestamp offset value is stored in minutes.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TimestampOffsetValue {
     minutes: Option<i16>,
 }
@@ -89,10 +110,79 @@ impl TimestampOffsetValue {
     }
 }
 
+impl TryFrom<Option<i16>> for TimestampOffsetValue {
+    type Error = IonSchemaError;
+
+    fn try_from(value: Option<i16>) -> Result<Self, Self::Error> {
+        match value {
+            Some(invalid_minutes) if !(-1439..1440).contains(&invalid_minutes) => {
+                invalid_schema_error(format!("timestamp offset minutes must be in the range -1439..1440; was {invalid_minutes}"))
+            }
+            minutes => Ok(TimestampOffsetValue{minutes}),
+        }
+    }
+}
+
 impl TryFrom<&str> for TimestampOffsetValue {
     type Error = IonSchemaError;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         todo!()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use crate::model::constraints::{AnyConstraint, TimestampOffset, TimestampOffsetValue};
+    use crate::model::TypeDefinitionBuilder;
+    use crate::ISL_1_0;
+
+    #[test]
+    fn test_builder() {
+        let type_ = TypeDefinitionBuilder::<ISL_1_0>::new()
+            .timestamp_offset([None, Some(-60), Some(0), Some(60), Some(120)])
+            .build();
+
+        assert_eq!(
+            type_.constraints().cloned().collect::<Vec<_>>(),
+            vec![AnyConstraint::TimestampOffset(TimestampOffset {
+                values: [
+                    TimestampOffsetValue { minutes: None },
+                    TimestampOffsetValue { minutes: Some(-60) },
+                    TimestampOffsetValue { minutes: Some(0) },
+                    TimestampOffsetValue { minutes: Some(60) },
+                    TimestampOffsetValue { minutes: Some(120) },
+                ]
+                .into_iter()
+                .collect(),
+            })]
+        );
+    }
+
+    #[test]
+    fn test_partial_eq() {
+        let neg_60 = TimestampOffsetValue::try_from(Some(-60)).unwrap();
+        let pos_60 = TimestampOffsetValue::try_from(Some(-60)).unwrap();
+        let unknown = TimestampOffsetValue::UNKNOWN;
+        let utc = TimestampOffsetValue::UTC;
+
+        // Duplicates shouldn't matter since they are redundant.
+        assert_eq!(
+            TimestampOffset::new(vec![neg_60, neg_60, pos_60, pos_60]),
+            TimestampOffset::new(vec![neg_60, pos_60]),
+        );
+
+        // Order shouldn't matter
+        assert_eq!(
+            TimestampOffset::new(vec![pos_60, neg_60, utc, unknown]),
+            TimestampOffset::new(vec![neg_60, pos_60, unknown, utc]),
+        );
+
+        // Different elements should matter
+        assert_ne!(
+            TimestampOffset::new(vec![pos_60, neg_60, utc]),
+            TimestampOffset::new(vec![neg_60, pos_60, unknown]),
+        );
     }
 }
