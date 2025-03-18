@@ -2,31 +2,31 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::internal_traits::{
-    LoaderContext, ReadFromIsl, ValidateInternal, ValidationContext, WriteAsIsl, WriteContext,
+    LoaderContext, ValidateInternal, ValidationContext, WriteAsIsl, WriteContext,
 };
 use crate::ion_schema_version::Versioned;
 use crate::model::constraints::{ConstraintName, ReadConstraint};
 use crate::model::type_argument::TypeArgument;
-use crate::model::{TypeDefinition, TypeDefinitionBuilder, VersionedTypeArgument};
+use crate::model::{TypeDefinitionBuilder, VersionedTypeArgument};
 use crate::result::IonSchemaResult;
 use crate::{IonSchemaElement, IslVersion, ViolationRecorder};
 use ion_rs::{Element, ValueWriter};
 use std::ops::ControlFlow;
 
-/// Represents the `type` constraint (ref. [ISL 1.0], [ISL 2.0]).
+impl ConstraintName for Not {
+    const CONSTRAINT_NAME: &'static str = "not";
+}
+
+/// Represents the `not` constraint (ref. [ISL 1.0], [ISL 2.0]).
 ///
-/// To avoid name conflicts with the keyword `type` and confusion with other Ion Schema concepts
-/// related to types, any types or functions pertaining to this constraint must have the word
-/// "constraint" in the name.
-///
-/// [ISL 1.0]: https://amazon-ion.github.io/ion-schema/docs/isl-1-0/spec#type
-/// [ISL 2.0]: https://amazon-ion.github.io/ion-schema/docs/isl-2-0/spec#type
+/// [ISL 1.0]: https://amazon-ion.github.io/ion-schema/docs/isl-1-0/spec#not
+/// [ISL 2.0]: https://amazon-ion.github.io/ion-schema/docs/isl-2-0/spec#not
 #[derive(Debug, PartialEq, Clone)]
-pub struct TypeConstraint {
+pub struct Not {
     type_argument: TypeArgument,
 }
 
-impl TypeConstraint {
+impl Not {
     pub(crate) fn new<T: Into<TypeArgument>>(type_argument: T) -> Self {
         Self {
             type_argument: type_argument.into(),
@@ -38,20 +38,16 @@ impl TypeConstraint {
     }
 }
 
-impl ConstraintName for TypeConstraint {
-    const CONSTRAINT_NAME: &'static str = "type";
-}
-
 impl<V: IslVersion> TypeDefinitionBuilder<V> {
-    pub fn type_constraint(self, type_argument: VersionedTypeArgument<V>) -> Self {
-        let constraint = TypeConstraint {
+    pub fn not(self, type_argument: VersionedTypeArgument<V>) -> Self {
+        let constraint = Not {
             type_argument: Versioned::into_inner(type_argument),
         };
         self.with_constraint(constraint.into())
     }
 }
 
-impl ValidateInternal for TypeConstraint {
+impl ValidateInternal for Not {
     fn validate_internal<'top: 'call, 'call, R>(
         &'top self,
         value: &IonSchemaElement<'top>,
@@ -65,7 +61,7 @@ impl ValidateInternal for TypeConstraint {
     }
 }
 
-impl<V: IslVersion> WriteAsIsl<V> for TypeConstraint
+impl<V: IslVersion> WriteAsIsl<V> for Not
 where
     TypeArgument: WriteAsIsl<V>,
 {
@@ -74,20 +70,12 @@ where
         writer: W,
         ctx: &WriteContext<V>,
     ) -> IonSchemaResult<()> {
-        TypeArgument::write_as_isl(self.type_argument(), writer, ctx)
+        todo!()
     }
 }
 
-impl<V: IslVersion> ReadConstraint<V> for TypeConstraint
-where
-    TypeDefinition: ReadFromIsl<V>,
-{
+impl<V: IslVersion> ReadConstraint<V> for Not {
     fn read_constraint(ion: &Element, ctx: &LoaderContext<V>) -> IonSchemaResult<Option<Self>> {
-        Ok(Some(TypeConstraint {
-            type_argument: TypeArgument::try_read(ion, ctx)?,
-        }))
+        todo!()
     }
 }
-
-// TODO: WriteAsIsl Tests, once more of the supporting pieces around types have been implemented
-// TODO: ReadFromIsl Tests, once more of the supporting pieces around types have been implemented

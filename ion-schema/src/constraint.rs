@@ -1140,7 +1140,7 @@ impl ConstraintValidator for ContainerLengthConstraint {
         let size = if let Some(element_iter) = value.as_sequence_iter() {
             element_iter.count()
         } else if let Some(strukt) = value.as_struct() {
-            strukt.fields().map(|(k, v)| v).count()
+            strukt.len()
         } else {
             return Err(Violation::new(
                 "container_length",
@@ -1929,7 +1929,10 @@ impl RegexConstraint {
 
     /// Converts given string to a pattern based on regex features supported by Ion Schema Specification
     /// For more information: `<https://amazon-ion.github.io/ion-schema/docs/isl-1-0/spec#regex>`
-    fn convert_to_pattern(expression: String, isl_version: IslVersion) -> IonSchemaResult<String> {
+    pub(crate) fn convert_to_pattern(
+        expression: String,
+        isl_version: IslVersion,
+    ) -> IonSchemaResult<String> {
         let mut sb = String::new();
         let mut si = expression.as_str().chars().peekable();
 

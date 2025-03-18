@@ -18,7 +18,7 @@ use std::ops::ControlFlow;
 /// [ISL 2.0]: https://amazon-ion.github.io/ion-schema/docs/isl-2-0/spec#utf8_byte_length
 #[derive(Debug, PartialEq, Clone)]
 pub struct Utf8ByteLength {
-    pub(crate) range: IonSchemaRange<usize>,
+    range: IonSchemaRange<usize>,
 }
 
 impl Utf8ByteLength {
