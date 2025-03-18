@@ -22,7 +22,7 @@ impl ConstraintName for Regex {
 /// Builder for regular expressions in Ion Schema.
 // TODO: Consider making this `pub`.
 #[derive(Clone, PartialEq, Debug)]
-struct IonSchemaRegexBuilder<V: IslVersion> {
+pub struct IonSchemaRegexBuilder<V: IslVersion> {
     // The `V` type parameter allows us to safely add new fields in new Ion Schema
     // versions without breaking compatibility.
     _version: PhantomData<V>,
@@ -31,7 +31,7 @@ struct IonSchemaRegexBuilder<V: IslVersion> {
     pattern: String,
 }
 impl<V: IslVersion> IonSchemaRegexBuilder<V> {
-    pub fn new(pattern: &str) -> Self {
+    fn new(pattern: &str) -> Self {
         Self {
             _version: Default::default(),
             case_insensitive: false,
@@ -40,7 +40,7 @@ impl<V: IslVersion> IonSchemaRegexBuilder<V> {
         }
     }
 
-    pub fn build(self) -> IonSchemaResult<Versioned<Regex, V>> {
+    fn build(self) -> IonSchemaResult<Versioned<Regex, V>> {
         // TODO: Clean up the different IslVersion representations
         let version = match V::MAJOR_MINOR {
             (1, 0) => crate::isl::IslVersion::V1_0,
@@ -70,56 +70,55 @@ impl<V: IslVersion> IonSchemaRegexBuilder<V> {
 }
 
 /// Trait for something that can be used to create a new [`IonSchemaRegexBuilder`].
-pub trait IonSchemaRegexSource<V: IslVersion>
+pub trait IonSchemaRegexSource<V: IslVersion>: Into<IonSchemaRegexBuilder<V>>
 where
     Self: Sized,
 {
-    fn to_regex_builder(self) -> IonSchemaRegexBuilder<V>;
-
-    fn multiline(self, yes: bool) -> IonSchemaRegexBuilder<V> {
-        self.to_regex_builder().multiline(yes)
+    fn multiline(self, yes: bool) -> impl IonSchemaRegexSource<V> {
+        self.into().multiline(yes)
     }
 
-    fn case_insensitive(self, yes: bool) -> IonSchemaRegexBuilder<V> {
-        self.to_regex_builder().case_insensitive(yes)
+    fn case_insensitive(self, yes: bool) -> impl IonSchemaRegexSource<V> {
+        self.into().case_insensitive(yes)
     }
 
     fn build_regex(self) -> IonSchemaResult<Versioned<Regex, V>> {
-        self.to_regex_builder().build()
+        self.into().build()
     }
 }
 
-impl<V: IslVersion, S: AsRef<str>> IonSchemaRegexSource<V> for S {
-    fn to_regex_builder(self) -> IonSchemaRegexBuilder<V> {
-        IonSchemaRegexBuilder::new(self.as_ref())
+impl<V: IslVersion, S: AsRef<str>> IonSchemaRegexSource<V> for S {}
+
+impl<V: IslVersion, S: AsRef<str>> From<S> for IonSchemaRegexBuilder<V> {
+    fn from(value: S) -> Self {
+        IonSchemaRegexBuilder::new(value.as_ref())
     }
 }
 
 impl<V: IslVersion> IonSchemaRegexSource<V> for IonSchemaRegexBuilder<V> {
-    fn to_regex_builder(self) -> IonSchemaRegexBuilder<V> {
-        self
-    }
-
-    fn multiline(mut self, yes: bool) -> IonSchemaRegexBuilder<V> {
+    fn multiline(mut self, yes: bool) -> impl IonSchemaRegexSource<V> {
         self.multiline = yes;
         self
     }
 
-    fn case_insensitive(mut self, yes: bool) -> IonSchemaRegexBuilder<V> {
+    fn case_insensitive(mut self, yes: bool) -> impl IonSchemaRegexSource<V> {
         self.case_insensitive = yes;
         self
     }
 }
 
-impl<V: IslVersion> IonSchemaRegexSource<V> for Versioned<Regex, V> {
-    fn to_regex_builder(self) -> IonSchemaRegexBuilder<V> {
+impl<V: IslVersion> From<Versioned<Regex, V>> for IonSchemaRegexBuilder<V> {
+    fn from(value: Versioned<Regex, V>) -> Self {
         IonSchemaRegexBuilder {
             _version: Default::default(),
-            case_insensitive: self.case_insensitive,
-            multiline: self.multiline,
-            pattern: self.regex.to_string(),
+            case_insensitive: value.case_insensitive,
+            multiline: value.multiline,
+            pattern: value.regex.to_string(),
         }
     }
+}
+
+impl<V: IslVersion> IonSchemaRegexSource<V> for Versioned<Regex, V> {
     fn build_regex(self) -> IonSchemaResult<Versioned<Regex, V>> {
         Ok(self)
     }
@@ -220,7 +219,7 @@ mod tests {
         let my_regex = IonSchemaRegexBuilder::new("abc")
             .case_insensitive(true)
             .multiline(true)
-            .build()
+            .build_regex()
             .unwrap();
         let type_ = TypeDefinitionBuilder::<ISL_1_0>::new()
             .regex(my_regex)
