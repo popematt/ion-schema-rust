@@ -5,6 +5,7 @@ use crate::internal_traits::{
     LoaderContext, ValidateInternal, ValidationContext, WriteAsIsl, WriteContext,
 };
 use crate::ion_schema_version::Versioned;
+use crate::model::bag::Bag;
 use crate::model::constraints::{ConstraintName, ReadConstraint};
 use crate::model::type_argument::TypeArgument;
 use crate::model::{TypeDefinitionBuilder, VersionedTypeArgumentList};
@@ -23,16 +24,14 @@ impl ConstraintName for OneOf {
 /// [ISL 2.0]: https://amazon-ion.github.io/ion-schema/docs/isl-2-0/spec#one_of
 #[derive(Debug, PartialEq, Clone)]
 pub struct OneOf {
-    type_arguments: Vec<TypeArgument>,
+    type_arguments: Bag<TypeArgument>,
 }
 
 impl OneOf {
-    fn new(mut type_arguments: Vec<TypeArgument>) -> Self {
-        // Sorting the vec allows us to get Bag-like equality semantics.
-        // TODO: Replace the vec with a HashBag or come up with a less hacky way to sort the type arguments.
-        type_arguments.sort_by_cached_key(|item| format!("{item:?}"));
-
-        Self { type_arguments }
+    fn new<T: Into<Bag<TypeArgument>>>(type_arguments: T) -> Self {
+        Self {
+            type_arguments: type_arguments.into(),
+        }
     }
 
     pub fn type_arguments(&self) -> impl Iterator<Item = &TypeArgument> {
@@ -82,11 +81,11 @@ impl<V: IslVersion> ReadConstraint<V> for OneOf {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::isl::isl_type_reference::NullabilityModifier;
+    use crate::model::bag::bag;
     use crate::model::{IntoTypeArgument, TypeDefinition, TypeReference};
     use crate::{ISL_1_0, ISL_2_0};
-
-    use super::*;
 
     #[test]
     fn test_builder() {
@@ -101,15 +100,15 @@ mod tests {
             .build();
 
         assert_eq!(
-            type_.constraints().cloned().collect::<Vec<_>>(),
-            vec![OneOf::new(vec![
+            type_.constraints().cloned().collect::<Bag<_>>(),
+            bag![OneOf::new(bag![
                 TypeArgument::from_type_ref(
                     NullabilityModifier::Nothing,
                     TypeReference::from("foo_type")
                 ),
                 TypeArgument::from_type_def(
                     NullabilityModifier::Nothing,
-                    TypeDefinition::new(vec![], vec![])
+                    TypeDefinition::new(bag![], bag![])
                 ),
                 TypeArgument::from_type_ref(
                     NullabilityModifier::Nothing,
@@ -128,8 +127,8 @@ mod tests {
             .build();
 
         assert_eq!(
-            type_.constraints().cloned().collect::<Vec<_>>(),
-            vec![OneOf::new(vec![
+            type_.constraints().cloned().collect::<Bag<_>>(),
+            bag![OneOf::new(bag![
                 TypeArgument::from_type_ref(
                     NullabilityModifier::Nothing,
                     TypeReference::from("foo_type")
