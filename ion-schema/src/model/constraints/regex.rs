@@ -20,8 +20,9 @@ impl ConstraintName for Regex {
 }
 
 /// Builder for regular expressions in Ion Schema.
+// TODO: Consider making this `pub`.
 #[derive(Clone, PartialEq, Debug)]
-pub struct IonSchemaRegexBuilder<V: IslVersion> {
+struct IonSchemaRegexBuilder<V: IslVersion> {
     // The `V` type parameter allows us to safely add new fields in new Ion Schema
     // versions without breaking compatibility.
     _version: PhantomData<V>,
@@ -37,16 +38,6 @@ impl<V: IslVersion> IonSchemaRegexBuilder<V> {
             multiline: false,
             pattern: String::from(pattern),
         }
-    }
-
-    pub fn case_insensitive(mut self, yes: bool) -> Self {
-        self.case_insensitive = yes;
-        self
-    }
-
-    pub fn multiline(mut self, yes: bool) -> Self {
-        self.multiline = yes;
-        self
     }
 
     pub fn build(self) -> IonSchemaResult<Versioned<Regex, V>> {
@@ -84,6 +75,15 @@ where
     Self: Sized,
 {
     fn to_regex_builder(self) -> IonSchemaRegexBuilder<V>;
+
+    fn multiline(self, yes: bool) -> IonSchemaRegexBuilder<V> {
+        self.to_regex_builder().multiline(yes)
+    }
+
+    fn case_insensitive(self, yes: bool) -> IonSchemaRegexBuilder<V> {
+        self.to_regex_builder().case_insensitive(yes)
+    }
+
     fn build_regex(self) -> IonSchemaResult<Versioned<Regex, V>> {
         self.to_regex_builder().build()
     }
@@ -97,6 +97,16 @@ impl<V: IslVersion, S: AsRef<str>> IonSchemaRegexSource<V> for S {
 
 impl<V: IslVersion> IonSchemaRegexSource<V> for IonSchemaRegexBuilder<V> {
     fn to_regex_builder(self) -> IonSchemaRegexBuilder<V> {
+        self
+    }
+
+    fn multiline(mut self, yes: bool) -> IonSchemaRegexBuilder<V> {
+        self.multiline = yes;
+        self
+    }
+
+    fn case_insensitive(mut self, yes: bool) -> IonSchemaRegexBuilder<V> {
+        self.case_insensitive = yes;
         self
     }
 }
@@ -146,7 +156,7 @@ impl<V: IslVersion> TypeDefinitionBuilder<V> {
     ///
     /// This will panic if the input is invalid. For a safe alternative, see [`Self::try_regex`].
     pub fn regex(self, regex: impl IonSchemaRegexSource<V>) -> Self {
-        self.with_constraint(Versioned::into_inner(regex.build_regex().unwrap()).into())
+        self.try_regex(regex).unwrap()
     }
 
     /// Adds a `regex` constraint to the type being built.
@@ -230,12 +240,7 @@ mod tests {
         );
 
         let type_ = TypeDefinitionBuilder::<ISL_1_0>::new()
-            .regex(
-                "abc"
-                    .to_regex_builder()
-                    .case_insensitive(true)
-                    .multiline(true),
-            )
+            .regex("abc".multiline(true).case_insensitive(true))
             .build();
 
         assert_eq!(

@@ -1140,7 +1140,7 @@ impl ConstraintValidator for ContainerLengthConstraint {
         let size = if let Some(element_iter) = value.as_sequence_iter() {
             element_iter.count()
         } else if let Some(strukt) = value.as_struct() {
-            strukt.fields().count()
+            strukt.len()
         } else {
             return Err(Violation::new(
                 "container_length",

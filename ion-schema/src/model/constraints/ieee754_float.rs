@@ -99,15 +99,15 @@ impl TryFrom<&Element> for FloatingPointNumberFormat {
     }
 }
 
-impl From<&FloatingPointNumberFormat> for Value {
-    fn from(value: &FloatingPointNumberFormat) -> Self {
+impl From<FloatingPointNumberFormat> for Value {
+    fn from(value: FloatingPointNumberFormat) -> Self {
         let text: &str = value.into();
         Value::Symbol(text.into())
     }
 }
 
-impl From<&FloatingPointNumberFormat> for &'static str {
-    fn from(value: &FloatingPointNumberFormat) -> Self {
+impl From<FloatingPointNumberFormat> for &'static str {
+    fn from(value: FloatingPointNumberFormat) -> Self {
         use FloatingPointNumberFormat::*;
         match value {
             Binary16 => "binary16",
