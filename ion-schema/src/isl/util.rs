@@ -209,9 +209,15 @@ impl ValidValue {
         if element.annotations().contains("range") {
             isl_require!(annotation.len() == 1 => "Unexpected annotation(s) on valid values argument: {element}")?;
             // Does it contain any timestamps
-            let has_timestamp = element.as_sequence().map_or(false, |s| {
-                s.elements().any(|it| it.ion_type() == IonType::Timestamp)
-            });
+            let has_timestamp = {
+                if let Some(sequence) = element.as_sequence() {
+                    sequence
+                        .elements()
+                        .any(|it| it.ion_type() == IonType::Timestamp)
+                } else {
+                    false
+                }
+            };
             let range = if has_timestamp {
                 ValidValue::TimestampRange(TimestampRange::from_ion_element(element, |e| {
                     e.as_timestamp()

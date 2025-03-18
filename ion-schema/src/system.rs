@@ -47,6 +47,7 @@ use std::sync::Arc;
 /// * A nested anonymous type definition.
 /// * A reference to type definition that is followed by current type definition. These type references
 ///   will be deferred to later check if a type definition with that name exists in the schema.
+///
 /// Because the [`SchemaSystem`] does not yet know the complete definition
 /// of these types, it cannot find them in the [`TypeStore`].
 /// An instance of [`PendingTypes`] is used to track information about types
@@ -92,6 +93,7 @@ impl PendingTypes {
     ///                      exists in [`PendingTypes`] it would have been added as a deferred type definition.
     ///                      This deferred type will be loaded into [`TypeStore`] as it is and will be replaced with a type definition
     ///                      once it is resolved.
+    ///
     /// Returns true, if this update is not for an isl import type or it is for an isl import type but it is added to the type_store
     /// Otherwise, returns false if this update is for an isl import type and it is not yet added to the type_store.
     pub fn update_type_store(
