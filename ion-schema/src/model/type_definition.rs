@@ -5,6 +5,7 @@ use crate::internal_traits::{
     LoaderContext, ReadFromIsl, ValidateInternal, ValidationContext, WriteAsIsl, WriteContext,
 };
 use crate::ion_schema_version::Versioned;
+use crate::model::bag::Bag;
 use crate::model::constraints::*;
 use crate::result::IonSchemaResult;
 use crate::{IonSchemaElement, IslVersion, ViolationRecorder, ISL_1_0, ISL_2_0};
@@ -17,21 +18,18 @@ pub type VersionedTypeDefinition<V> = Versioned<TypeDefinition, V>;
 /// A TypeDefinition is a set of constraints and (optionally) additional user content.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TypeDefinition {
-    // FIXME: Replace these with bags or use a set and decide that this implementation of Ion
-    //        Schema does not preserve duplicate name/value pairs for open content. That
-    //        may be an acceptable limitation.
-    constraints: Vec<AnyConstraint>,
-    open_content: Vec<(Symbol, IonData<Element>)>,
+    constraints: Bag<AnyConstraint>,
+    open_content: Bag<(Symbol, IonData<Element>)>,
 }
 
 impl TypeDefinition {
     pub(crate) fn new(
-        constraints: Vec<AnyConstraint>,
-        open_content: Vec<(Symbol, IonData<Element>)>,
+        constraints: Bag<AnyConstraint>,
+        open_content: Bag<(Symbol, IonData<Element>)>,
     ) -> Self {
         Self {
-            constraints: constraints.into_iter().collect(),
-            open_content: open_content.into_iter().collect(),
+            constraints,
+            open_content,
         }
     }
 
@@ -49,6 +47,8 @@ impl TypeDefinition {
 /// A version-safe builder for Ion Schema type definitions.
 #[derive(Debug, Clone)]
 pub struct TypeDefinitionBuilder<V: IslVersion> {
+    // TypeDefinitionBuilder uses `Vec` because our naive implementation of `Bag` does not support
+    // modifying the collection.
     constraints: Vec<AnyConstraint>,
     open_content: Vec<(Symbol, IonData<Element>)>,
     isl_version: PhantomData<V>,
@@ -73,7 +73,10 @@ impl<V: IslVersion> TypeDefinitionBuilder<V> {
     }
 
     pub fn build(self) -> VersionedTypeDefinition<V> {
-        Versioned::new(TypeDefinition::new(self.constraints, self.open_content))
+        Versioned::new(TypeDefinition::new(
+            self.constraints.into(),
+            self.open_content.into(),
+        ))
     }
 
     pub fn with_open_content<S: Into<Symbol>, E: Into<Element>>(

@@ -2,6 +2,7 @@ use crate::internal_traits::{
     LoaderContext, ReadFromIsl, ValidateInternal, ValidationContext, WriteAsIsl, WriteContext,
 };
 use crate::ion_extension::ElementExtensions;
+use crate::model::bag::{bag, Bag};
 use crate::model::constraints::{ConstraintName, ReadConstraint};
 use crate::model::ranges::IonSchemaRange;
 use crate::model::TypeDefinitionBuilder;
@@ -23,7 +24,7 @@ impl ConstraintName for ValidValues {
 #[derive(Clone, Debug, PartialEq)]
 pub struct ValidValues {
     // TODO: Use a Set once Timestamp and Decimal implement Hash
-    values: Vec<ValidValuesArgument>,
+    values: Bag<ValidValuesArgument>,
 }
 
 impl ValidValues {
@@ -86,8 +87,7 @@ impl<V: IslVersion> WriteAsIsl<V> for ValidValues {
         ctx.minimize_ranges = false;
 
         // If it's just a single range, skip the containing list.
-        if self.values.len() == 1 {
-            let the_value = self.values.first().unwrap();
+        if let Some(the_value) = self.values.single() {
             match the_value {
                 ValidValuesArgument::TimestampRange(range) => {
                     range.write_as_isl(writer, &ctx)?;
@@ -115,7 +115,7 @@ impl<V: IslVersion> ReadConstraint<V> for ValidValues {
         // It can be a single range, or a list of arguments. Either way, it must be a list.
         // First, we'll try reading it as a range.
         let values = if (ion.one_optional_annotation()?).is_some() {
-            vec![read_one_range(ion, ctx)?]
+            bag![read_one_range(ion, ctx)?]
         } else {
             let c: IonSchemaResult<_> = ion
                 .expect_list()?
@@ -229,9 +229,9 @@ mod tests {
             .valid_values([Value::Float(1.0), Value::String("foo".into())])
             .build();
         assert_eq!(
-            type_.constraints().cloned().collect::<Vec<_>>(),
-            vec![ValidValues {
-                values: vec![Value::Float(1.0).into(), Value::String("foo".into()).into(),]
+            type_.constraints().cloned().collect::<Bag<_>>(),
+            bag![ValidValues {
+                values: bag![Value::Float(1.0).into(), Value::String("foo".into()).into(),]
             }
             .into()]
         );
@@ -240,9 +240,9 @@ mod tests {
             .valid_values(["foo", "bar"])
             .build();
         assert_eq!(
-            type_.constraints().cloned().collect::<Vec<_>>(),
-            vec![ValidValues {
-                values: vec![
+            type_.constraints().cloned().collect::<Bag<_>>(),
+            bag![ValidValues {
+                values: bag![
                     Value::String("foo".into()).into(),
                     Value::String("bar".into()).into(),
                 ]
@@ -258,9 +258,9 @@ mod tests {
             .build();
 
         assert_eq!(
-            type_.constraints().cloned().collect::<Vec<_>>(),
-            vec![ValidValues {
-                values: vec![IonSchemaRange::from(Decimal::from(1)..=Decimal::from(10)).into()]
+            type_.constraints().cloned().collect::<Bag<_>>(),
+            bag![ValidValues {
+                values: bag![IonSchemaRange::from(Decimal::from(1)..=Decimal::from(10)).into()]
             }
             .into()]
         );
@@ -271,23 +271,23 @@ mod tests {
         ISL_1_0, ISL_2_0 {
             #[case::empty(
                 Ok("[]"),
-                ValidValues { values: vec![] }
+                ValidValues { values: bag![] }
             )]
             #[case::single_int_value(
                 Ok("[1]"),
-                ValidValues { values: vec![ValidValuesArgument::from(1)] }
+                ValidValues { values: bag![ValidValuesArgument::from(1)] }
             )]
             #[case::single_string_value(
                 Ok("[\"abc\"]"),
-                ValidValues { values: vec![ValidValuesArgument::from("abc")] }
+                ValidValues { values: bag![ValidValuesArgument::from("abc")] }
             )]
             #[case::multiple_values(
-                Ok("[\"abc\", 1, null]"),
-                ValidValues { values: vec![ValidValuesArgument::from("abc"), ValidValuesArgument::from(1), ValidValuesArgument::from(IonType::Null)] }
+                Ok("[1, null, \"abc\"]"),
+                ValidValues { values: bag![ValidValuesArgument::from("abc"), ValidValuesArgument::from(1), ValidValuesArgument::from(IonType::Null)] }
             )]
             #[case::multiple_values_with_range(
-                Ok("[\"abc\", 1, range::[1., 2.]]"),
-                ValidValues { values: vec![
+                Ok("[range::[1., 2.], 1, \"abc\"]"),
+                ValidValues { values: bag![
                     ValidValuesArgument::from("abc"),
                     ValidValuesArgument::from(1),
                     ValidValuesArgument::NumericRange((Decimal::from(1)..=Decimal::from(2)).into())
@@ -295,19 +295,19 @@ mod tests {
             )]
             #[case::single_number_range_should_not_be_in_a_list(
                 Ok("range::[1., 2.]"),
-                ValidValues { values: vec![ValidValuesArgument::NumericRange((Decimal::from(1)..=Decimal::from(2)).into())] }
+                ValidValues { values: bag![ValidValuesArgument::NumericRange((Decimal::from(1)..=Decimal::from(2)).into())] }
             )]
             #[case::single_timestamp_range_should_not_be_in_a_list(
                 Ok("range::[2024T, 2025T]"),
-                ValidValues { values: vec![ValidValuesArgument::TimestampRange((Timestamp::with_year(2024).build().unwrap()..=Timestamp::with_year(2025).build().unwrap()).into())] }
+                ValidValues { values: bag![ValidValuesArgument::TimestampRange((Timestamp::with_year(2024).build().unwrap()..=Timestamp::with_year(2025).build().unwrap()).into())] }
             )]
             #[case::singleton_number_range_should_not_be_minimized(
                 Ok("range::[1., 1.]"),
-                ValidValues { values: vec![ValidValuesArgument::NumericRange((Decimal::from(1)..=Decimal::from(1)).into())] }
+                ValidValues { values: bag![ValidValuesArgument::NumericRange((Decimal::from(1)..=Decimal::from(1)).into())] }
             )]
             #[case::singleton_timestamp_range_should_not_be_minimized(
                 Ok("range::[2025T, 2025T]"),
-                ValidValues { values: vec![ValidValuesArgument::TimestampRange((Timestamp::with_year(2025).build().unwrap()..=Timestamp::with_year(2025).build().unwrap()).into())] }
+                ValidValues { values: bag![ValidValuesArgument::TimestampRange((Timestamp::with_year(2025).build().unwrap()..=Timestamp::with_year(2025).build().unwrap()).into())] }
             )]
         }
     );
@@ -315,24 +315,24 @@ mod tests {
     test_harness!(
         use test_read_constraint;
         ISL_1_0, ISL_2_0 {
-            #[case::empty("[]", Ok(Some(ValidValues { values: vec![] })))]
+            #[case::empty("[]", Ok(Some(ValidValues { values: bag![] })))]
             #[case::empty_list_annotated_with_range("range::[]", err::<Option<ValidValues>>())]
             #[case::annotated_value_in_list("[foo::1]", err::<Option<ValidValues>>())]
             #[case::single_int_value(
                 "[1]",
-                Ok(Some(ValidValues { values: vec![ValidValuesArgument::from(1)] }))
+                Ok(Some(ValidValues { values: bag![ValidValuesArgument::from(1)] }))
             )]
             #[case::single_string_value(
                 "[\"abc\"]",
-                Ok(Some(ValidValues { values: vec![ValidValuesArgument::from("abc")] }))
+                Ok(Some(ValidValues { values: bag![ValidValuesArgument::from("abc")] }))
             )]
             #[case::multiple_values(
                 "[\"abc\", 1, null]",
-                Ok(Some(ValidValues { values: vec![ValidValuesArgument::from("abc"), ValidValuesArgument::from(1), ValidValuesArgument::from(IonType::Null)] }))
+                Ok(Some(ValidValues { values: bag![ValidValuesArgument::from("abc"), ValidValuesArgument::from(1), ValidValuesArgument::from(IonType::Null)] }))
             )]
             #[case::multiple_values_with_range(
                 "[\"abc\", 1, range::[1., 2.]]",
-                Ok(Some(ValidValues { values: vec![
+                Ok(Some(ValidValues { values: bag![
                     ValidValuesArgument::from("abc"),
                     ValidValuesArgument::from(1),
                     ValidValuesArgument::NumericRange((Decimal::from(1)..=Decimal::from(2)).into())
@@ -340,23 +340,23 @@ mod tests {
             )]
             #[case::single_number_range_in_a_list(
                 "[range::[1., 2.]]",
-                Ok(Some(ValidValues { values: vec![ValidValuesArgument::NumericRange((Decimal::from(1)..=Decimal::from(2)).into())] }))
+                Ok(Some(ValidValues { values: bag![ValidValuesArgument::NumericRange((Decimal::from(1)..=Decimal::from(2)).into())] }))
             )]
             #[case::single_number_range_not_in_a_list(
                 "range::[1., 2.]",
-                Ok(Some(ValidValues { values: vec![ValidValuesArgument::NumericRange((Decimal::from(1)..=Decimal::from(2)).into())] }))
+                Ok(Some(ValidValues { values: bag![ValidValuesArgument::NumericRange((Decimal::from(1)..=Decimal::from(2)).into())] }))
             )]
             #[case::single_number_range_with_ints(
                 "range::[1, 2]",
-                Ok(Some(ValidValues { values: vec![ValidValuesArgument::NumericRange((Decimal::from(1)..=Decimal::from(2)).into())] }))
+                Ok(Some(ValidValues { values: bag![ValidValuesArgument::NumericRange((Decimal::from(1)..=Decimal::from(2)).into())] }))
             )]
             #[case::single_number_range_with_floats(
                 "range::[1e0, 2e0]",
-                Ok(Some(ValidValues { values: vec![ValidValuesArgument::NumericRange((Decimal::from(1)..=Decimal::from(2)).into())] }))
+                Ok(Some(ValidValues { values: bag![ValidValuesArgument::NumericRange((Decimal::from(1)..=Decimal::from(2)).into())] }))
             )]
             #[case::single_timestamp_range(
                 "range::[2024T, 2025T]",
-                Ok(Some(ValidValues { values: vec![ValidValuesArgument::TimestampRange((Timestamp::with_year(2024).build().unwrap()..=Timestamp::with_year(2025).build().unwrap()).into())] }))
+                Ok(Some(ValidValues { values: bag![ValidValuesArgument::TimestampRange((Timestamp::with_year(2024).build().unwrap()..=Timestamp::with_year(2025).build().unwrap()).into())] }))
             )]
         }
     );
