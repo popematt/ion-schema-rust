@@ -60,8 +60,11 @@ impl<V: IslVersion> IonSchemaRegexBuilder<V> {
         // Apply ISL specific regex validation
         let pattern = RegexConstraint::convert_to_pattern(self.pattern, version)?;
 
-        // Check that `regex::Regex` won't return any errors with this pattern.
-        let regex = RegexBuilder::new(pattern.as_str())
+        let regex = RegexBuilder::new(&pattern)
+            // TODO: See if this would fix https://github.com/amazon-ion/ion-rust/issues/399
+            //.crlf(true)
+            .case_insensitive(self.case_insensitive)
+            .multi_line(self.multiline)
             .build()
             .map_err(|e| invalid_schema_error_raw(format!("Invalid regex: {pattern}")))?;
 
@@ -133,20 +136,8 @@ impl PartialEq for Regex {
 }
 
 impl Regex {
-    fn new<V: IslVersion>(builder: IonSchemaRegexBuilder<V>) -> Self {
-        let regex = RegexBuilder::new(builder.pattern.as_str())
-            // TODO: See if this would fix https://github.com/amazon-ion/ion-rust/issues/399
-            //.crlf(true)
-            .case_insensitive(builder.case_insensitive)
-            .multi_line(builder.multiline)
-            .build()
-            .expect("Regex should be valid because it was checked in IonSchemaRegex");
-
-        Self {
-            regex,
-            multiline: builder.multiline,
-            case_insensitive: builder.case_insensitive,
-        }
+    fn pattern(&self) -> &str {
+        self.regex.as_str()
     }
 }
 
