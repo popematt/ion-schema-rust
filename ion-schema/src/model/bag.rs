@@ -40,7 +40,7 @@ impl<T: PartialEq + Debug> Bag<T> {
 }
 
 impl<T> Bag<T> {
-    /// Returns the number of elements in the vector, also referred to
+    /// Returns the number of elements in the bag, also referred to
     /// as its 'length'.
     pub fn len(&self) -> usize {
         self.items.len()
