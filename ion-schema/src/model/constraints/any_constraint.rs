@@ -96,9 +96,7 @@ macro_rules! any_constraint {
 
 any_constraint!(
     AllOf,
-    // AnnotationsV1,
-    AnnotationsV2Simple,
-    // AnnotationsV2Standard,
+    Annotations,
     AnyOf,
     ByteLength,
     CodepointLength,
