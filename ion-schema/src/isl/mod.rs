@@ -3,15 +3,13 @@
 //! This module consists of three submodules that help constructing ISL types/constraint:
 //!
 //! * `isl_type` module represents a schema type [IslType] which converts given ion content in the schema file
-//! into an ISL types(not-yet-resolved types). It stores `IslConstraint`s defined within the given type.
-//!
+//!   into an ISL types(not-yet-resolved types). It stores `IslConstraint`s defined within the given type.
 //! * `isl_import` module represents a schema import [IslImport] which converts given ion content in the schema file
-//! into an ISL import. It stores schema id, an optional type that needs to be imported and an optional alias to that type.
-//!
+//!   into an ISL import. It stores schema id, an optional type that needs to be imported and an optional alias to that type.
 //! * `isl_constraint` module represents schema constraints [IslConstraint]
-//! which converts given ion content in the schema file into an ISL constraint(not-yet-resolved constraints).
-//!
+//!   which converts given ion content in the schema file into an ISL constraint(not-yet-resolved constraints).
 //! * `isl_type_reference` module provides a schema type reference.
+//!
 //! The type reference grammar is defined in the [Ion Schema Specification]
 //!
 //! [IslConstraint]: isl_constraint::IslConstraint
@@ -555,6 +553,7 @@ impl<'a> Iterator for SchemaIterator<'a> {
 }
 
 #[cfg(test)]
+#[allow(unused_must_use)]
 mod isl_tests {
     use crate::authority::FileSystemDocumentAuthority;
     use crate::ion_extension::ElementExtensions;

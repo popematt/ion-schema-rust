@@ -218,7 +218,7 @@ impl OrderedElementsNfa {
                     edges.clone()
                 } else {
                     // The only state without edges is `Final`, which cannot be exited.
-                    invalid_transitions.insert(TraversalError::CannotExitState(from_state_id));
+                    invalid_transitions.insert(TraversalError::Exiting(from_state_id));
                     break;
                 };
 
@@ -231,7 +231,7 @@ impl OrderedElementsNfa {
                     let is_loop = to_state_id == from_state_id;
 
                     if !is_loop && !can_exit {
-                        invalid_transitions.insert(TraversalError::CannotExitState(from_state_id));
+                        invalid_transitions.insert(TraversalError::Exiting(from_state_id));
                         // We haven't reached the min_occurs of the current state. Any further
                         // transitions will also suffer from the same problem. No need to report
                         // this same problem repeatedly, so we break here.
@@ -245,9 +245,9 @@ impl OrderedElementsNfa {
 
                     if let Err(violation) = can_enter {
                         invalid_transitions
-                            .insert(TraversalError::CannotEnterState(to_state_id, violation));
+                            .insert(TraversalError::Entering(to_state_id, violation));
                     } else if is_loop && !can_reenter {
-                        invalid_transitions.insert(TraversalError::CannotReEnterState(to_state_id));
+                        invalid_transitions.insert(TraversalError::ReEntering(to_state_id));
                     } else {
                         let new_num_visits = if is_loop { num_visits + 1 } else { 1 };
                         new_states.insert((to_state_id, new_num_visits));
@@ -284,19 +284,19 @@ impl OrderedElementsNfa {
         let reasons = reasons
             .into_iter()
             .map(|it| match it {
-                TraversalError::CannotExitState(s) => Violation::new(
+                TraversalError::Exiting(s) => Violation::new(
                     "ordered_elements",
                     ViolationCode::ElementMismatched,
                     format!("{}: min occurs not reached", &self.states[s]),
                     ion_path,
                 ),
-                TraversalError::CannotReEnterState(s) => Violation::new(
+                TraversalError::ReEntering(s) => Violation::new(
                     "ordered_elements",
                     ViolationCode::ElementMismatched,
                     format!("{}: max occurs already reached", &self.states[s],),
                     ion_path,
                 ),
-                TraversalError::CannotEnterState(s, v) => Violation::with_violations(
+                TraversalError::Entering(s, v) => Violation::with_violations(
                     "ordered_elements",
                     ViolationCode::ElementMismatched,
                     format!("{}: does not match type", &self.states[s]),
@@ -424,9 +424,9 @@ impl Display for State {
 /// The reason why a transition (or edge) in the state machine graph cannot be traversed.
 #[derive(Debug)]
 enum TraversalError {
-    CannotEnterState(StateId, Violation),
-    CannotExitState(StateId),
-    CannotReEnterState(StateId),
+    Entering(StateId, Violation),
+    Exiting(StateId),
+    ReEntering(StateId),
 }
 
 impl PartialOrd for TraversalError {
@@ -438,14 +438,14 @@ impl PartialOrd for TraversalError {
 impl Ord for TraversalError {
     fn cmp(&self, other: &Self) -> Ordering {
         let self_id = match self {
-            TraversalError::CannotEnterState(id, _)
-            | TraversalError::CannotExitState(id)
-            | TraversalError::CannotReEnterState(id) => id,
+            TraversalError::Entering(id, _)
+            | TraversalError::Exiting(id)
+            | TraversalError::ReEntering(id) => id,
         };
         let other_id = match other {
-            TraversalError::CannotEnterState(id, _)
-            | TraversalError::CannotExitState(id)
-            | TraversalError::CannotReEnterState(id) => id,
+            TraversalError::Entering(id, _)
+            | TraversalError::Exiting(id)
+            | TraversalError::ReEntering(id) => id,
         };
         self_id.cmp(other_id)
     }
@@ -456,22 +456,19 @@ impl Eq for TraversalError {}
 impl PartialEq for TraversalError {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (
-                TraversalError::CannotExitState(self_id),
-                TraversalError::CannotExitState(other_id),
-            ) => self_id == other_id,
-            (
-                TraversalError::CannotReEnterState(self_id),
-                TraversalError::CannotReEnterState(other_id),
-            ) => self_id == other_id,
+            (TraversalError::Exiting(self_id), TraversalError::Exiting(other_id)) => {
+                self_id == other_id
+            }
+            (TraversalError::ReEntering(self_id), TraversalError::ReEntering(other_id)) => {
+                self_id == other_id
+            }
             // It is okay to ignore the violation here because we only consider one event/element at
             // any given point in the state machine. Since that is the case, if the IDs are the same,
             // then they must represent the same destination state (type reference), and so the
             // violations must be equal.
-            (
-                TraversalError::CannotEnterState(self_id, _),
-                TraversalError::CannotEnterState(other_id, _),
-            ) => self_id == other_id,
+            (TraversalError::Entering(self_id, _), TraversalError::Entering(other_id, _)) => {
+                self_id == other_id
+            }
             (_, _) => false,
         }
     }
@@ -484,9 +481,9 @@ impl Hash for TraversalError {
         // between the prime numbers makes it even more unlikely that a collision would occur since
         // the first IDs that could have a collision with each other would be 107 and 307.
         state.write_usize(match self {
-            TraversalError::CannotEnterState(id, _) => id * 503,
-            TraversalError::CannotExitState(id) => id * 307,
-            TraversalError::CannotReEnterState(id) => id * 107,
+            TraversalError::Entering(id, _) => id * 503,
+            TraversalError::Exiting(id) => id * 307,
+            TraversalError::ReEntering(id) => id * 107,
         })
     }
 }
