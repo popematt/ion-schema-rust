@@ -84,12 +84,42 @@ impl SchemaDocument {
         self.items.iter()
     }
 
+    /// Iterate all types declared in this schema document
+    pub fn types(&self) -> impl Iterator<Item = (&str, &TypeDefinition)> {
+        self.items.iter().filter_map(|item| match item {
+            SchemaItem::Type(name, def) => Some((name.as_str(), def)),
+            _ => None,
+        })
+    }
+
+    /// Gets the [`SchemaHeader`], if this schema document has a header.
+    pub fn header(&self) -> Option<&SchemaHeader> {
+        self.items.iter().find_map(|item| {
+            if let SchemaItem::Header(header) = item {
+                Some(header)
+            } else {
+                None
+            }
+        })
+    }
+
     /// Get a type from the schema, by name.
     pub fn get_type(&self, name: &str) -> Option<&TypeDefinition> {
         self.items.iter().find_map(|item| match item {
             SchemaItem::Type(type_name, type_def) if name == type_name => Some(type_def),
             _ => None,
         })
+    }
+
+    /// Iterate all types declared in this schema definition
+    pub(crate) fn indexed_type_names(&self) -> impl Iterator<Item = (usize, &String)> {
+        self.items
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, item)| match item {
+                SchemaItem::Type(name, _) => Some((idx, name)),
+                _ => None,
+            })
     }
 
     pub(crate) fn get_type_idx_by_name(&self, name: &str) -> Option<usize> {

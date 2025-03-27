@@ -18,3 +18,4 @@ pub use schema_header::*;
 pub use type_argument::*;
 pub use type_definition::*;
 pub use type_reference::*;
+pub use variable_type_argument::*;
