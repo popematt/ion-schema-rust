@@ -39,7 +39,7 @@ macro_rules! any_constraint {
         )+
 
         impl TypeRefWalker for AnyConstraint {
-            fn walk<V: TypeRefVisitor>(&self, visitor: &mut V) {
+            fn walk<V: TypeRefVisitor>(&mut self, visitor: &mut V) {
                 match self {
                     $(AnyConstraint::$name(constraint) => constraint.walk(visitor),
                     )+

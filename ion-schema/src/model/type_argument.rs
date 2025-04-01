@@ -52,10 +52,10 @@ enum TypeArgumentKind {
 }
 
 impl TypeRefWalker for TypeArgument {
-    fn walk<V: TypeRefVisitor>(&self, visitor: &mut V) {
-        match &self.kind {
-            TypeArgumentKind::TypeReference(ref type_ref) => visitor.visit(type_ref),
-            TypeArgumentKind::InlineType(type_def) => type_def.walk(visitor),
+    fn walk<V: TypeRefVisitor>(&mut self, visitor: &mut V) {
+        match &mut self.kind {
+            TypeArgumentKind::TypeReference(ref mut type_ref) => visitor.visit(type_ref),
+            TypeArgumentKind::InlineType(ref mut type_def) => type_def.walk(visitor),
         }
     }
 }

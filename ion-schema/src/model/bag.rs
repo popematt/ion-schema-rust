@@ -58,6 +58,10 @@ impl<T> Bag<T> {
     pub fn iter(&self) -> impl Iterator<Item = &T> {
         self.items.iter()
     }
+
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut T> {
+        self.items.iter_mut()
+    }
 }
 
 impl<T> IntoIterator for Bag<T> {

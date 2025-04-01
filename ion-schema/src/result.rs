@@ -17,6 +17,8 @@ pub type ValidationResult = Result<(), Violation>;
 /// Represents the different types of high-level failures that might occur when reading Ion Schema.
 #[derive(Debug, Error)]
 pub enum IonSchemaError {
+    // TODO: Add support for multiple errors (i.e. more than one resolution failure and/or invalid syntax)
+    //       Consider using Miette (https://crates.io/crates/miette) for formatting the list of errors.
     /// Indicates that an io error occurred while loading a schema
     #[error("{source:?}")]
     IoError {

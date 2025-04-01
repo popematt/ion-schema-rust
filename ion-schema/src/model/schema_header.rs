@@ -64,6 +64,25 @@ impl Import {
             }),
         }
     }
+
+    /// The Schema ID that this [`Import`] is targeting.
+    pub fn schema_id(&self) -> &str {
+        &self.schema_id
+    }
+
+    /// The (optional) type that this [`Import`] is targeting.
+    pub fn type_name(&self) -> Option<&str> {
+        self.type_import
+            .as_ref()
+            .map(|type_import| type_import.type_name.as_str())
+    }
+
+    /// The (optional) alias for the type that this [`Import`] is targeting.
+    pub fn type_alias(&self) -> Option<&str> {
+        self.type_import
+            .as_ref()
+            .and_then(|type_import| type_import.alias.as_deref())
+    }
 }
 
 /// Builds a [`SchemaHeader`].

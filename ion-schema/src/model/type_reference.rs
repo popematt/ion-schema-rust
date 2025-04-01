@@ -3,7 +3,7 @@
 
 use crate::internal_traits::{LoaderContext, ReadFromIsl, WriteAsIsl, WriteContext};
 use crate::ion_extension::StructExtensions;
-use crate::model::type_definition::TypeDefinition;
+use crate::resolver::TypeCoordinates;
 use crate::result::{invalid_schema_error, IonSchemaResult};
 use crate::IslVersion;
 use ion_rs::{Element, StructWriter, Value, ValueWriter};
@@ -13,17 +13,27 @@ use ion_rs::{Element, StructWriter, Value, ValueWriter};
 pub struct TypeReference {
     schema_id: Option<String>,
     type_name: String,
-    // Not exposed in public API.
-    // Initially `None`, but changed to `Some(_)` when resolving the schemas
-    // TODO: resolved: Cell<Option<...>>,
+    // Not exposed in public API. Initially `None`, but changed to `Some(_)` when resolving the schemas
+    resolved_type_coordinates: Option<TypeCoordinates>,
 }
 
 impl TypeReference {
-    // TODO: Determine if this needs to be pub
-    pub(crate) fn imported<A: Into<String>, B: Into<String>>(schema_id: A, type_name: B) -> Self {
+    /// Creates a `TypeReference` for a type name that is defined in or imported to the current
+    /// [`SchemaDocument`].
+    fn local<S: Into<String>>(type_name: S) -> Self {
+        TypeReference {
+            schema_id: None,
+            type_name: type_name.into(),
+            resolved_type_coordinates: None,
+        }
+    }
+
+    /// Creates a `TypeReference` that is an inline import from another schema.
+    pub fn imported<A: Into<String>, B: Into<String>>(schema_id: A, type_name: B) -> Self {
         TypeReference {
             schema_id: Some(schema_id.into()),
             type_name: type_name.into(),
+            resolved_type_coordinates: None,
         }
     }
 
@@ -35,20 +45,19 @@ impl TypeReference {
         self.type_name.as_str()
     }
 
-    /// Returns an immutable borrow of the [TypeDefinition] to which this [TypeReference] refers.
-    pub fn get(&self) -> Option<&TypeDefinition> {
-        todo!()
+    pub(crate) fn type_coordinates(&self) -> Option<TypeCoordinates> {
+        self.resolved_type_coordinates
     }
 
-    // TODO: functions for setting the resolved type
+    /// Sets the [`TypeCoordinates`] of this `TypeReference`.
+    pub(crate) fn set_type_coordinates(&mut self, type_coordinates: Option<TypeCoordinates>) {
+        self.resolved_type_coordinates = type_coordinates
+    }
 }
 
 impl<T: Into<String>> From<T> for TypeReference {
     fn from(value: T) -> Self {
-        TypeReference {
-            schema_id: None,
-            type_name: value.into(),
-        }
+        TypeReference::local(value)
     }
 }
 
@@ -105,10 +114,7 @@ mod tests {
     #[test]
     fn from_string() {
         let from_value = "foo";
-        let expected = TypeReference {
-            schema_id: None,
-            type_name: "foo".to_string(),
-        };
+        let expected = TypeReference::local("foo");
         assert_eq!(expected, from_value.into())
     }
 
@@ -118,13 +124,14 @@ mod tests {
         let expected = TypeReference {
             schema_id: Some("foo".to_string()),
             type_name: "bar".to_string(),
+            resolved_type_coordinates: None,
         };
         assert_eq!(expected, actual)
     }
 
     #[rstest]
-    #[case::type_name("foo", TypeReference { schema_id: None, type_name: "foo".to_string() })]
-    #[case::inline_import("{id:\"foo.isl\",type:bar}", TypeReference { schema_id: Some("foo.isl".to_string()), type_name: "bar".to_string() } )]
+    #[case::type_name("foo", TypeReference::local("foo"))]
+    #[case::inline_import("{id:\"foo.isl\",type:bar}", TypeReference::imported("foo.isl", "bar"))]
     fn type_reference_try_read_ok(#[case] ion: &str, #[case] expected: TypeReference) {
         let expected = Ok(expected);
         let element = Element::read_one(ion).unwrap();
