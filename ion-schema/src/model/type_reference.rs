@@ -18,7 +18,9 @@ pub struct TypeReference {
 }
 
 impl TypeReference {
-    fn new<S: Into<String>>(type_name: S) -> Self {
+    /// Creates a `TypeReference` for a type name that is defined in or imported to the current
+    /// [`SchemaDocument`].
+    fn local<S: Into<String>>(type_name: S) -> Self {
         TypeReference {
             schema_id: None,
             type_name: type_name.into(),
@@ -26,6 +28,7 @@ impl TypeReference {
         }
     }
 
+    /// Creates a `TypeReference` that is an inline import from another schema.
     pub fn imported<A: Into<String>, B: Into<String>>(schema_id: A, type_name: B) -> Self {
         TypeReference {
             schema_id: Some(schema_id.into()),
@@ -46,14 +49,15 @@ impl TypeReference {
         self.resolved_type_coordinates
     }
 
-    pub(crate) fn resolve_type_coordinates(&mut self, type_coordinates: Option<TypeCoordinates>) {
+    /// Sets the [`TypeCoordinates`] of this `TypeReference`.
+    pub(crate) fn set_type_coordinates(&mut self, type_coordinates: Option<TypeCoordinates>) {
         self.resolved_type_coordinates = type_coordinates
     }
 }
 
 impl<T: Into<String>> From<T> for TypeReference {
     fn from(value: T) -> Self {
-        TypeReference::new(value)
+        TypeReference::local(value)
     }
 }
 
@@ -110,7 +114,7 @@ mod tests {
     #[test]
     fn from_string() {
         let from_value = "foo";
-        let expected = TypeReference::new("foo");
+        let expected = TypeReference::local("foo");
         assert_eq!(expected, from_value.into())
     }
 
@@ -126,7 +130,7 @@ mod tests {
     }
 
     #[rstest]
-    #[case::type_name("foo", TypeReference::new("foo"))]
+    #[case::type_name("foo", TypeReference::local("foo"))]
     #[case::inline_import("{id:\"foo.isl\",type:bar}", TypeReference::imported("foo.isl", "bar"))]
     fn type_reference_try_read_ok(#[case] ion: &str, #[case] expected: TypeReference) {
         let expected = Ok(expected);

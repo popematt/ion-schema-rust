@@ -32,7 +32,7 @@ impl ConstraintName for Annotations {
 pub struct Annotations {
     variant: AnnotationsVariant,
 }
-impl_type_ref_walker!(Annotations, as_annotations_v2_standard());
+impl_type_ref_walker!(Annotations, as_annotations_v2_standard_mut());
 
 impl Annotations {
     pub fn as_annotations_v1(&self) -> Option<&AnnotationsV1> {
@@ -51,6 +51,14 @@ impl Annotations {
     }
     pub fn as_annotations_v2_standard(&self) -> Option<&AnnotationsV2Standard> {
         if let AnnotationsVariant::V2Standard(variant) = &self.variant {
+            Some(variant)
+        } else {
+            None
+        }
+    }
+
+    pub fn as_annotations_v2_standard_mut(&mut self) -> Option<&mut AnnotationsV2Standard> {
+        if let AnnotationsVariant::V2Standard(ref mut variant) = &mut self.variant {
             Some(variant)
         } else {
             None

@@ -33,7 +33,7 @@ impl From<Element> for SchemaItem {
 }
 
 impl TypeRefWalker for SchemaItem {
-    fn walk<V: TypeRefVisitor>(&self, visitor: &mut V) {
+    fn walk<V: TypeRefVisitor>(&mut self, visitor: &mut V) {
         if let SchemaItem::Type(_, t) = self {
             t.walk(visitor)
         }

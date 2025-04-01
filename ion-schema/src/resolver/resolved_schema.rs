@@ -2,10 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::model::{SchemaDocument, TypeDefinition};
-use crate::resolver::{impl_type_ref_walker, SchemaStore};
+use crate::resolver::SchemaStore;
 use crate::resolver::{resolve, unresolve};
 use crate::result::IonSchemaError;
-use std::collections::HashMap;
 use std::sync::Arc;
 
 /// Represents a [`SchemaDocument`] that has had all of its type references successfully resolved
@@ -37,7 +36,6 @@ pub struct ResolvedSchema {
     schema_store: Arc<SchemaStore>,
     schema_index: usize,
 }
-impl_type_ref_walker!(ResolvedSchema, as_schema_document());
 
 impl ResolvedSchema {
     /// Constructs a [`ResolvedSchema`] backed by the given [`SchemaStore`].
@@ -76,10 +74,8 @@ impl ResolvedSchema {
     ///
     /// To get an owned copy of the [`SchemaDocument`] for just this schema, you can alternately
     /// use `self.as_schema_document().clone()`.
-    pub fn unresolve(self) -> Option<HashMap<String, SchemaDocument>> {
-        let mut map = HashMap::new();
-        map.insert("".to_string(), self);
-        unresolve(map)
+    pub fn unresolve(self) -> Option<impl Iterator<Item = (String, SchemaDocument)>> {
+        unresolve([("".to_owned(), self)])
     }
 }
 
@@ -87,11 +83,8 @@ impl ResolvedSchema {
 impl TryFrom<SchemaDocument> for ResolvedSchema {
     type Error = IonSchemaError;
     fn try_from(value: SchemaDocument) -> Result<Self, Self::Error> {
-        let key = "".to_string();
-        let mut map = HashMap::new();
-        map.insert(key.clone(), value);
-        let mut resolved = resolve(map)?;
-        Ok(resolved.remove(&key).unwrap())
+        let mut resolved = resolve([("".to_owned(), value)])?;
+        Ok(resolved.next().unwrap().1)
     }
 }
 
