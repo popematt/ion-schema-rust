@@ -18,7 +18,7 @@
 use crate::isl::ranges::base::RangeValidation;
 use crate::isl::util::TimestampPrecision;
 use crate::IonSchemaResult;
-use crate::{invalid_schema_error, invalid_schema_error_raw, isl_require};
+use crate::{invalid_schema_error, invalid_schema_error_raw, result::isl_require};
 use ion_rs::Decimal;
 use ion_rs::{Element, IonResult, ValueWriter, WriteAsIon};
 use ion_rs::{IonType, Timestamp};

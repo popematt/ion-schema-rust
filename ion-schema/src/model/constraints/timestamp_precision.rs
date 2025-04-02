@@ -1,10 +1,9 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::internal_traits::{
-    LoaderContext, ReadFromIsl, ValidateInternal, ValidationContext, WriteAsIsl, WriteContext,
-};
+use crate::internal_traits::{ValidateInternal, ValidationContext, WriteAsIsl, WriteContext};
 use crate::ion_extension::ElementExtensions;
+use crate::loader::{ReadFromIsl, ReaderContext};
 use crate::model::constraints::{ConstraintName, ReadConstraint};
 use crate::model::ranges::IonSchemaRange;
 use crate::model::TypeDefinitionBuilder;
@@ -74,7 +73,7 @@ impl TimestampPrecisionValue {
 }
 
 impl<V: IslVersion> ReadFromIsl<V> for TimestampPrecisionValue {
-    fn try_read(ion: &Element, ctx: &LoaderContext<V>) -> IonSchemaResult<Self> {
+    fn try_read(ion: &Element, ctx: &ReaderContext<V>) -> IonSchemaResult<Self> {
         match ion.as_symbol_text() {
             Some(TimestampPrecisionValue::YEAR) => Ok(Year),
             Some(TimestampPrecisionValue::MONTH) => Ok(Month),
@@ -206,7 +205,7 @@ impl<V: IslVersion> WriteAsIsl<V> for TimestampPrecision {
 }
 
 impl<V: IslVersion> ReadConstraint<V> for TimestampPrecision {
-    fn read_constraint(ion: &Element, ctx: &LoaderContext<V>) -> IonSchemaResult<Option<Self>> {
+    fn read_constraint(ion: &Element, ctx: &ReaderContext<V>) -> IonSchemaResult<Option<Self>> {
         let range = IonSchemaRange::try_read(ion, ctx)?;
         Ok(Some(TimestampPrecision::new(range)))
     }
@@ -216,10 +215,11 @@ impl<V: IslVersion> ReadConstraint<V> for TimestampPrecision {
 mod tests {
     use super::*;
 
-    use crate::internal_traits::{LoaderContext, WriteContext};
+    use crate::internal_traits::WriteContext;
 
     use std::collections::Bound;
 
+    use crate::loader::ReaderContext;
     use crate::model::ranges::IonSchemaRange;
     use crate::model::TypeDefinitionBuilder;
     use crate::result::IonSchemaResult;
@@ -292,7 +292,7 @@ mod tests {
     #[case::year("range::[year, exclusive::minute]", TimestampPrecision::new_unchecked(Year..Minute))]
     fn timestamp_precision_try_read_ok(#[case] ion: &str, #[case] expected: TimestampPrecision) {
         let element = Element::read_one(ion).unwrap();
-        let load_ctx = LoaderContext::<ISL_2_0>::new();
+        let load_ctx = ReaderContext::<ISL_2_0>::new();
         let result = TimestampPrecision::read_constraint(&element, &load_ctx);
         assert_eq!(result, Ok(Some(expected)))
     }
@@ -313,7 +313,7 @@ mod tests {
     #[case::range_cannot_be_unbounded_at_both_ends("range::[min, max]")]
     fn timestamp_precision_try_read_err(#[case] ion: &str) {
         let element = Element::read_one(ion).unwrap();
-        let load_ctx = LoaderContext::<ISL_2_0>::new();
+        let load_ctx = ReaderContext::<ISL_2_0>::new();
         let result: IonSchemaResult<Option<TimestampPrecision>> =
             TimestampPrecision::read_constraint(&element, &load_ctx);
         assert!(result.is_err())

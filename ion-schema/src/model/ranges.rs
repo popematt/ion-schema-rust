@@ -1,12 +1,13 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::internal_traits::{LoaderContext, ReadFromIsl, WriteAsIsl, WriteContext};
+use crate::internal_traits::{WriteAsIsl, WriteContext};
 use crate::ion_extension::ElementExtensions;
+use crate::loader::{ReadFromIsl, ReaderContext};
 use crate::result::{
-    invalid_schema_error, invalid_schema_error_raw, IonSchemaError, IonSchemaResult,
+    invalid_schema_error, invalid_schema_error_raw, isl_require, IonSchemaError, IonSchemaResult,
 };
-use crate::{isl_require, IslVersion};
+use crate::IslVersion;
 use hidden::RangeBoundType;
 use ion_rs::{Annotatable, Element, SequenceWriter, ValueWriter, WriteAsIon};
 use std::fmt::Debug;
@@ -124,7 +125,7 @@ const EXCLUSIVE: &str = "exclusive";
 const RANGE: &str = "range";
 
 impl<V: IslVersion, T: RangeBoundType + ReadFromIsl<V>> ReadFromIsl<V> for IonSchemaRange<T> {
-    fn try_read(ion: &Element, ctx: &LoaderContext<V>) -> IonSchemaResult<Self> {
+    fn try_read(ion: &Element, ctx: &ReaderContext<V>) -> IonSchemaResult<Self> {
         let optional_annotation = ion.one_optional_annotation()?;
         if optional_annotation == Some(RANGE) {
             let Some(seq) = ion.as_list() else {
@@ -200,6 +201,7 @@ from_range!(RangeToInclusive);
 #[cfg(test)]
 mod tests {
     use crate::internal_traits::*;
+    use crate::loader::{ReadFromIsl, ReaderContext};
     use crate::model::ranges::IonSchemaRange;
     use crate::result::IonSchemaResult;
     use crate::ISL_2_0;
@@ -284,7 +286,7 @@ mod tests {
         #[case] expected_max: Bound<usize>,
     ) {
         let element = Element::read_one(ion).unwrap();
-        let load_ctx = LoaderContext::<ISL_2_0>::new();
+        let load_ctx = ReaderContext::<ISL_2_0>::new();
         let result = IonSchemaRange::try_read(&element, &load_ctx);
         assert_eq!(result, IonSchemaRange::try_new(expected_min, expected_max))
     }
@@ -304,7 +306,7 @@ mod tests {
     #[case::range_cannot_be_unbounded_at_both_ends("range::[min, max]")]
     fn range_try_read_err(#[case] ion: &str) {
         let element = Element::read_one(ion).unwrap();
-        let load_ctx = LoaderContext::<ISL_2_0>::new();
+        let load_ctx = ReaderContext::<ISL_2_0>::new();
         let result: IonSchemaResult<IonSchemaRange<usize>> =
             IonSchemaRange::try_read(&element, &load_ctx);
         assert!(result.is_err())

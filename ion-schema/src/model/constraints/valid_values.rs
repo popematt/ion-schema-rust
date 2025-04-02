@@ -1,7 +1,6 @@
-use crate::internal_traits::{
-    LoaderContext, ReadFromIsl, ValidateInternal, ValidationContext, WriteAsIsl, WriteContext,
-};
+use crate::internal_traits::{ValidateInternal, ValidationContext, WriteAsIsl, WriteContext};
 use crate::ion_extension::ElementExtensions;
+use crate::loader::{ReadFromIsl, ReaderContext};
 use crate::model::bag::{bag, Bag};
 use crate::model::constraints::{ConstraintName, ReadConstraint};
 use crate::model::ranges::IonSchemaRange;
@@ -113,7 +112,7 @@ impl<V: IslVersion> WriteAsIsl<V> for ValidValues {
 }
 
 impl<V: IslVersion> ReadConstraint<V> for ValidValues {
-    fn read_constraint(ion: &Element, ctx: &LoaderContext<V>) -> IonSchemaResult<Option<Self>> {
+    fn read_constraint(ion: &Element, ctx: &ReaderContext<V>) -> IonSchemaResult<Option<Self>> {
         // It can be a single range, or a list of arguments. Either way, it must be a list.
         // First, we'll try reading it as a range.
         let values = if (ion.one_optional_annotation()?).is_some() {
@@ -132,7 +131,7 @@ impl<V: IslVersion> ReadConstraint<V> for ValidValues {
 
 fn read_one_argument<V: IslVersion>(
     ion: &Element,
-    ctx: &LoaderContext<V>,
+    ctx: &ReaderContext<V>,
 ) -> IonSchemaResult<ValidValuesArgument> {
     if (ion.one_optional_annotation()?).is_some() {
         read_one_range(ion, ctx)
@@ -143,7 +142,7 @@ fn read_one_argument<V: IslVersion>(
 
 fn read_one_range<V: IslVersion>(
     ion: &Element,
-    ctx: &LoaderContext<V>,
+    ctx: &ReaderContext<V>,
 ) -> IonSchemaResult<ValidValuesArgument> {
     let range = if let Ok(range) = IonSchemaRange::try_read(ion, ctx) {
         ValidValuesArgument::TimestampRange(range)
@@ -204,7 +203,7 @@ impl From<IonSchemaRange<Timestamp>> for ValidValuesArgument {
 struct NumberRangeValue(Decimal);
 
 impl<V: IslVersion> ReadFromIsl<V> for NumberRangeValue {
-    fn try_read(ion: &Element, ctx: &LoaderContext<V>) -> IonSchemaResult<Self> {
+    fn try_read(ion: &Element, ctx: &ReaderContext<V>) -> IonSchemaResult<Self> {
         let value = match ion.value() {
             Value::Int(i) => NumberRangeValue(Decimal::from(*i)),
             Value::Float(f) if f.is_finite() => NumberRangeValue(Decimal::try_from(*f)?),

@@ -1,7 +1,7 @@
 use crate::ion_extension::ElementExtensions;
 use crate::isl::ranges::{NumberRange, TimestampRange};
 use crate::isl::IslVersion;
-use crate::isl_require;
+use crate::result::isl_require;
 use crate::result::{invalid_schema_error, IonSchemaError, IonSchemaResult};
 use ion_rs::TimestampPrecision as Precision;
 use ion_rs::{Element, IonResult, Value, ValueWriter, WriteAsIon};

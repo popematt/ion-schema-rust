@@ -6,7 +6,7 @@
 
 use crate::result::{invalid_schema_error, IonSchemaResult};
 use crate::{IonSchemaElement, IslVersion, ViolationRecorder};
-use ion_rs::{Element, ValueWriter};
+use ion_rs::ValueWriter;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::ops::ControlFlow;
@@ -68,41 +68,6 @@ impl<V: IslVersion> WriteContext<V> {
         WriteContext {
             version: PhantomData::<V>,
             minimize_ranges: true,
-        }
-    }
-}
-
-/// For internal implementation of reading Ion Schema Language.
-pub(crate) trait ReadFromIsl<V: IslVersion>: Sized {
-    fn try_read(ion: &Element, ctx: &LoaderContext<V>) -> IonSchemaResult<Self>;
-}
-/// Macro for trivial implementations that can use `expect_*` functions on [`Element`].
-macro_rules! read_from_isl {
-    ($t:ty, $func:ident) => {
-        impl<V: IslVersion> ReadFromIsl<V> for $t {
-            fn try_read(ion: &Element, ctx: &LoaderContext<V>) -> IonSchemaResult<Self> {
-                let i = ion.$func()?;
-                Ok(i)
-            }
-        }
-    };
-}
-read_from_isl!(usize, expect_usize);
-read_from_isl!(i64, expect_i64);
-read_from_isl!(ion_rs::Decimal, expect_decimal);
-read_from_isl!(ion_rs::Timestamp, expect_timestamp);
-
-// TODO: fields/functions to support
-//    * looking up types/schemas that are already loaded
-//    * queueing up types/schemas that need to be loaded
-//    * any other context that we discover that we need.
-pub(crate) struct LoaderContext<V> {
-    version: PhantomData<V>,
-}
-impl<V: IslVersion> LoaderContext<V> {
-    pub fn new() -> Self {
-        LoaderContext {
-            version: PhantomData::<V>,
         }
     }
 }

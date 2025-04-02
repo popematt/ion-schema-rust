@@ -6,7 +6,7 @@ use crate::isl::isl_type::IslType;
 use crate::result::{invalid_schema_error, invalid_schema_error_raw, IonSchemaResult};
 use ion_rs::{Element, IonResult, Struct, StructWriter, Symbol, ValueWriter, WriteAsIon};
 use regex::Regex;
-use std::sync::OnceLock;
+use std::sync::LazyLock;
 
 /// A `try`-like macro to work around the [`Option`]/[`Result`] nested APIs.
 /// These API require checking the type and then calling the appropriate getter function
@@ -44,6 +44,7 @@ mod violation_recorder;
 #[cfg(test)]
 mod test_harness;
 
+mod loader;
 pub mod model;
 pub mod resolver;
 
@@ -51,21 +52,20 @@ pub use ion_schema_element::*;
 pub use ion_schema_version::*;
 pub use violation_recorder::*;
 
-static ISL_VERSION_MARKER_REGEX: OnceLock<Regex> = OnceLock::new();
-static RESERVED_WORD_REGEX: OnceLock<Regex> = OnceLock::new();
+pub(crate) static RESERVED_WORD_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^(\$ion_schema(_.*)?|[a-z][a-z0-9]*(_[a-z0-9]+)*)$").unwrap());
+
+pub(crate) static ISL_VERSION_MARKER_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^\$ion_schema_\d.*$").unwrap());
 
 /// Checks if a value is an ISL version marker.
 fn is_isl_version_marker(text: &str) -> bool {
-    ISL_VERSION_MARKER_REGEX
-        .get_or_init(|| Regex::new(r"^\$ion_schema_\d.*$").unwrap())
-        .is_match(text)
+    ISL_VERSION_MARKER_REGEX.is_match(text)
 }
 
 /// Checks is a value is reserved keyword ISL version maker.
 fn is_reserved_word(text: &str) -> bool {
-    RESERVED_WORD_REGEX
-        .get_or_init(|| Regex::new(r"^(\$ion_schema(_.*)?|[a-z][a-z0-9]*(_[a-z0-9]+)*)$").unwrap())
-        .is_match(text)
+    RESERVED_WORD_REGEX.is_match(text)
 }
 
 const ISL_2_0_KEYWORDS: [&str; 28] = [

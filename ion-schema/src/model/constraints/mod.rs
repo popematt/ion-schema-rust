@@ -26,12 +26,12 @@ mod type_constraint;
 mod utf8_byte_length;
 mod valid_values;
 
-use crate::internal_traits::*;
 use crate::result::IonSchemaResult;
 use crate::IslVersion;
 use ion_rs::Element;
 use std::fmt::Debug;
 
+use crate::loader::ReaderContext;
 pub use all_of::*;
 pub use annotations::*;
 pub use any_constraint::*;
@@ -66,7 +66,7 @@ pub(super) trait ReadConstraint<V: IslVersion>
 where
     Self: Sized,
 {
-    fn read_constraint(ion: &Element, ctx: &LoaderContext<V>) -> IonSchemaResult<Option<Self>> {
+    fn read_constraint(ion: &Element, ctx: &ReaderContext<V>) -> IonSchemaResult<Option<Self>> {
         // Default implementation indicates this is unsupported for a particular ISL version.
         Ok(None)
     }
@@ -79,11 +79,11 @@ fn test_read_constraint<V: IslVersion, T: ReadConstraint<V> + PartialEq + Debug>
     expected: Result<Option<T>, ()>,
     version: std::marker::PhantomData<V>,
 ) {
-    use crate::internal_traits::LoaderContext;
+    use crate::loader::ReaderContext;
     use ion_rs::Element;
 
     let element = Element::read_one(ion).unwrap();
-    let load_ctx = LoaderContext::<V>::new();
+    let load_ctx = ReaderContext::<V>::new();
     let result = T::read_constraint(&element, &load_ctx);
 
     if let Ok(expected_constraint) = expected {

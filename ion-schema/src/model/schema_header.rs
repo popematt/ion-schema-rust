@@ -1,7 +1,9 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::loader::{ReadFromIsl, ReaderContext};
 use crate::model::bag::Bag;
+use crate::result::IonSchemaResult;
 use crate::{IslVersion, Versioned, ISL_2_0};
 use ion_rs::Element;
 use std::marker::PhantomData;
@@ -171,6 +173,12 @@ impl SchemaHeaderBuilder<ISL_2_0> {
             .map(S::into)
             .for_each(|s| self.user_reserved_footer_keywords.push(s));
         self
+    }
+}
+
+impl<V: IslVersion> ReadFromIsl<V> for SchemaHeader {
+    fn try_read(ion: &Element, ctx: &ReaderContext<V>) -> IonSchemaResult<Self> {
+        todo!()
     }
 }
 

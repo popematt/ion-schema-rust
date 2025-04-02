@@ -97,7 +97,6 @@ pub fn unresolvable_schema_error_raw<S: AsRef<str>>(description: S) -> IonSchema
 /// A macro that checks some condition required to be valid ISL.
 ///
 /// If invalid, returns an InvalidSchemaErr with the given error message.
-#[macro_export]
 macro_rules! isl_require {
     ($expression:expr => $fmt_string:literal $(, $($tt:tt)*)?) => {
         if ($expression) {
@@ -109,3 +108,4 @@ macro_rules! isl_require {
         }
     };
 }
+pub(crate) use isl_require;

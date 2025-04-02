@@ -1,9 +1,11 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::loader::{ReadFromIsl, ReaderContext};
 use crate::model::schema::schema_doc_builder_state::{BeforeHeader, HasFooter, Types};
-use crate::model::{SchemaHeader, TypeDefinition, VersionedTypeDefinition};
+use crate::model::{bag, Bag, SchemaHeader, TypeDefinition, VersionedTypeDefinition};
 use crate::resolver::*;
+use crate::result::IonSchemaResult;
 use crate::{IslVersion, Versioned};
 use ion_rs::Element;
 use std::collections::HashMap;
@@ -57,7 +59,7 @@ impl SchemaDocument {
         SchemaDocumentBuilder::new()
     }
 
-    fn new<V: IslVersion>(items: Vec<SchemaItem>) -> Self {
+    pub(crate) fn new<V: IslVersion>(items: Vec<SchemaItem>) -> Self {
         let types_by_name = items
             .iter()
             .enumerate()
@@ -143,7 +145,7 @@ impl SchemaDocument {
 
 /// Holds empty types that are states for [`SchemaDocumentBuilder`].
 /// This module is _not_ `pub` so that the type-states are not nameable (for now).
-mod schema_doc_builder_state {
+pub(crate) mod schema_doc_builder_state {
     pub enum BeforeHeader {}
     pub enum Types {}
     pub enum HasFooter {}
@@ -226,11 +228,22 @@ impl<V: IslVersion, S> SchemaDocumentBuilder<V, S> {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct SchemaFooter {
-    // TODO: Add open content
+    open_content: Bag<(String, Element)>,
 }
 impl SchemaFooter {
     pub fn empty<V: IslVersion>() -> Versioned<SchemaFooter, V> {
-        Versioned::new(SchemaFooter {})
+        Versioned::new(SchemaFooter {
+            open_content: bag![],
+        })
+    }
+
+    pub fn open_content(&self) -> impl Iterator<Item = &(String, Element)> {
+        self.open_content.iter()
+    }
+}
+impl<V: IslVersion> ReadFromIsl<V> for SchemaFooter {
+    fn try_read(ion: &Element, ctx: &ReaderContext<V>) -> IonSchemaResult<Self> {
+        todo!()
     }
 }
 
@@ -269,7 +282,9 @@ mod tests {
                     TypeDefinition::new(bag![ContainerLength::new(0..5).into()], bag![])
                 ),
                 SchemaItem::OpenContent(Element::string("foo")),
-                SchemaItem::Footer(SchemaFooter {})
+                SchemaItem::Footer(SchemaFooter {
+                    open_content: bag![]
+                })
             ]
         )
     }

@@ -7,7 +7,7 @@ use crate::isl::util::{
 };
 use crate::isl::IslVersion;
 use crate::result::{invalid_schema_error, invalid_schema_error_raw, IonSchemaResult};
-use crate::{isl, isl_require};
+use crate::{isl, result::isl_require};
 use ion_rs::{Element, Value};
 use ion_rs::{IonResult, SequenceWriter, StructWriter, ValueWriter, WriteAsIon};
 use ion_rs::{IonType, Symbol};

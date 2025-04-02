@@ -3,6 +3,7 @@
 
 use crate::internal_traits::*;
 use crate::ion_extension::SymbolExtensions;
+use crate::loader::ReaderContext;
 use crate::model::constraints::annotations::AnnotationsVariant;
 use crate::model::constraints::AnnotationsV2Modifier::{Closed, ClosedAndRequired, Required};
 use crate::model::constraints::{Annotations, ReadConstraint};
@@ -169,7 +170,7 @@ impl ReadConstraint<ISL_1_0> for AnnotationsV2Simple {}
 impl ReadConstraint<ISL_2_0> for AnnotationsV2Simple {
     fn read_constraint(
         ion: &Element,
-        ctx: &LoaderContext<ISL_2_0>,
+        ctx: &ReaderContext<ISL_2_0>,
     ) -> IonSchemaResult<Option<Self>> {
         let required = ion.annotations().contains("required");
         let closed = ion.annotations().contains("closed");
@@ -219,7 +220,8 @@ impl ReadConstraint<ISL_2_0> for AnnotationsV2Simple {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::internal_traits::{LoaderContext, WriteAsIsl, WriteContext};
+    use crate::internal_traits::{WriteAsIsl, WriteContext};
+    use crate::loader::ReaderContext;
     use crate::ISL_2_0;
     use ion_rs::v1_0::Text;
     use ion_rs::{Element, SequenceWriter, Writer};
@@ -258,7 +260,7 @@ mod tests {
     #[case::empty_annotation_list("closed::[]", AnnotationsV2Simple::new(AnnotationsV2Modifier::Closed, Vec::<String>::new()))]
     fn annotations_v2_simple_try_read_ok(#[case] ion: &str, #[case] expected: AnnotationsV2Simple) {
         let element = Element::read_one(ion).unwrap();
-        let load_ctx = LoaderContext::<ISL_2_0>::new();
+        let load_ctx = ReaderContext::<ISL_2_0>::new();
         let result = AnnotationsV2Simple::read_constraint(&element, &load_ctx);
         assert_eq!(result, Ok(Some(expected)))
     }
@@ -274,7 +276,7 @@ mod tests {
     #[case::annotations_cannot_have_unknown_text("required::[$0]")]
     fn annotations_v2_simple_try_read_err(#[case] ion: &str) {
         let element = Element::read_one(ion).unwrap();
-        let load_ctx = LoaderContext::<ISL_2_0>::new();
+        let load_ctx = ReaderContext::<ISL_2_0>::new();
         let result = AnnotationsV2Simple::read_constraint(&element, &load_ctx);
         assert!(result.is_err())
     }

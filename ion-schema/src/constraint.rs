@@ -11,8 +11,8 @@ use crate::isl::util::{
     Annotation, Ieee754InterchangeFormat, TimestampOffset, TimestampPrecision, ValidValue,
 };
 use crate::isl::IslVersion;
-use crate::isl_require;
 use crate::ordered_elements_nfa::OrderedElementsNfa;
+use crate::result::isl_require;
 use crate::result::{
     invalid_schema_error, invalid_schema_error_raw, IonSchemaResult, ValidationResult,
 };

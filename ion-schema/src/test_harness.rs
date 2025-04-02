@@ -107,17 +107,17 @@ pub(crate) fn write_as_isl<V: crate::IslVersion, T: crate::internal_traits::Writ
 /// Runs a test case for [`ReadFromIsl`](crate::internal_traits::ReadFromIsl).
 pub(crate) fn read_from_isl<
     V: crate::IslVersion,
-    T: crate::internal_traits::ReadFromIsl<V> + PartialEq + Debug,
+    T: crate::loader::ReadFromIsl<V> + PartialEq + Debug,
 >(
     ion: &str,
     expected: Result<T, ()>,
     version: std::marker::PhantomData<V>,
 ) {
-    use crate::internal_traits::LoaderContext;
+    use crate::loader::ReaderContext;
     use ion_rs::Element;
 
     let element = Element::read_one(ion).unwrap();
-    let load_ctx = LoaderContext::<V>::new();
+    let load_ctx = ReaderContext::<V>::new();
     let result = T::try_read(&element, &load_ctx);
 
     if let Ok(expected_constraint) = expected {

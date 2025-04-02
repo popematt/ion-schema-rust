@@ -1,9 +1,10 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::internal_traits::{LoaderContext, ReadFromIsl, WriteAsIsl, WriteContext};
+use crate::internal_traits::{WriteAsIsl, WriteContext};
 use crate::ion_schema_version::Versioned;
 use crate::isl::isl_type_reference::NullabilityModifier;
+use crate::loader::{ReadFromIsl, ReaderContext};
 use crate::model::type_definition::TypeDefinition;
 use crate::model::type_reference::TypeReference;
 use crate::model::VersionedTypeDefinition;
@@ -90,7 +91,7 @@ impl<V: IslVersion> ReadFromIsl<V> for TypeArgument
 where
     TypeDefinition: ReadFromIsl<V>,
 {
-    fn try_read(ion: &Element, ctx: &LoaderContext<V>) -> IonSchemaResult<Self> {
+    fn try_read(ion: &Element, ctx: &ReaderContext<V>) -> IonSchemaResult<Self> {
         let nullability_modifier = ReadFromIsl::try_read(ion, ctx)?;
         let kind = match ion.value() {
             Value::Symbol(s) => TypeArgumentKind::TypeReference(s.expect_text()?.into()),

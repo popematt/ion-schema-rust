@@ -1,10 +1,9 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::internal_traits::{
-    LoaderContext, ReadFromIsl, ValidateInternal, ValidationContext, WriteAsIsl, WriteContext,
-};
+use crate::internal_traits::{ValidateInternal, ValidationContext, WriteAsIsl, WriteContext};
 use crate::ion_schema_version::Versioned;
+use crate::loader::{ReadFromIsl, ReaderContext};
 use crate::model::bag::Bag;
 use crate::model::constraints::*;
 use crate::resolver::impl_type_ref_walker;
@@ -138,12 +137,18 @@ where
 }
 
 impl ReadFromIsl<ISL_1_0> for TypeDefinition {
-    fn try_read(ion: &Element, ctx: &LoaderContext<ISL_1_0>) -> IonSchemaResult<Self> {
+    fn try_read(ion: &Element, ctx: &ReaderContext<ISL_1_0>) -> IonSchemaResult<Self> {
         let struct_ = ion.expect_struct()?;
         let mut builder = TypeDefinitionBuilder::<ISL_1_0>::new();
+        let mut child_ctx = *ctx;
+        child_ctx.is_top_level = false;
         for (name, value) in struct_.fields() {
             let constraint_name = name.expect_text()?;
-            match AnyConstraint::read_constraint(constraint_name, value, ctx)? {
+            if constraint_name == "name" && ctx.is_top_level {
+                // Ignore "name" if we're in a top-level type declaration. It's handled in SchemaItem.
+                continue;
+            }
+            match AnyConstraint::read_constraint(constraint_name, value, &child_ctx)? {
                 Some(constraint) => builder.constraints.push(constraint),
                 None => builder
                     .open_content
@@ -155,12 +160,18 @@ impl ReadFromIsl<ISL_1_0> for TypeDefinition {
 }
 
 impl ReadFromIsl<ISL_2_0> for TypeDefinition {
-    fn try_read(ion: &Element, ctx: &LoaderContext<ISL_2_0>) -> IonSchemaResult<Self> {
+    fn try_read(ion: &Element, ctx: &ReaderContext<ISL_2_0>) -> IonSchemaResult<Self> {
         let struct_ = ion.expect_struct()?;
         let mut builder = TypeDefinitionBuilder::<ISL_2_0>::new();
+        let mut child_ctx = *ctx;
+        child_ctx.is_top_level = false;
         for (name, value) in struct_.fields() {
             let constraint_name = name.expect_text()?;
-            match AnyConstraint::read_constraint(constraint_name, value, ctx)? {
+            if constraint_name == "name" && ctx.is_top_level {
+                // Ignore "name" if we're in a top-level type declaration. It's handled in SchemaItem.
+                continue;
+            }
+            match AnyConstraint::read_constraint(constraint_name, value, &child_ctx)? {
                 Some(constraint) => builder.constraints.push(constraint),
                 None => {
                     // TODO: Check if this particular open content is legal

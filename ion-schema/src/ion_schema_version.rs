@@ -10,6 +10,7 @@ mod private {
 /// Trait for ISL version marker types.
 pub trait IslVersion: private::IslVersion + Clone {
     const MAJOR_MINOR: (u8, u8);
+    const VERSION_MARKER_TEXT: &'static str;
 }
 
 /// Ion Schema Language 1.0
@@ -21,6 +22,7 @@ impl private::IslVersion for ISL_1_0 {}
 
 impl IslVersion for ISL_1_0 {
     const MAJOR_MINOR: (u8, u8) = (1, 0);
+    const VERSION_MARKER_TEXT: &'static str = "$ion_schema_1_0";
 }
 
 /// Ion Schema Language 2.0
@@ -32,6 +34,7 @@ impl private::IslVersion for ISL_2_0 {}
 
 impl IslVersion for ISL_2_0 {
     const MAJOR_MINOR: (u8, u8) = (2, 0);
+    const VERSION_MARKER_TEXT: &'static str = "$ion_schema_2_0";
 }
 
 /*

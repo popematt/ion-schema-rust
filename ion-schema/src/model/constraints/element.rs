@@ -3,6 +3,7 @@
 
 use crate::internal_traits::*;
 use crate::ion_schema_version::Versioned;
+use crate::loader::{ReadFromIsl, ReaderContext};
 use crate::model::constraints::{ConstraintName, ReadConstraint};
 use crate::model::type_argument::TypeArgument;
 use crate::model::{TypeDefinitionBuilder, VersionedTypeArgument};
@@ -114,7 +115,7 @@ impl WriteAsIsl<ISL_2_0> for ElementType {
 }
 
 impl ReadFromIsl<ISL_1_0> for ElementType {
-    fn try_read(ion: &Element, ctx: &LoaderContext<ISL_1_0>) -> IonSchemaResult<Self> {
+    fn try_read(ion: &Element, ctx: &ReaderContext<ISL_1_0>) -> IonSchemaResult<Self> {
         Ok(ElementType {
             distinct: false,
             type_argument: TypeArgument::try_read(ion, ctx)?,
@@ -125,7 +126,7 @@ impl ReadFromIsl<ISL_1_0> for ElementType {
 impl ReadConstraint<ISL_1_0> for ElementType {
     fn read_constraint(
         ion: &Element,
-        ctx: &LoaderContext<ISL_1_0>,
+        ctx: &ReaderContext<ISL_1_0>,
     ) -> IonSchemaResult<Option<Self>> {
         Ok(Some(ElementType {
             distinct: false,
@@ -137,7 +138,7 @@ impl ReadConstraint<ISL_1_0> for ElementType {
 impl ReadConstraint<ISL_2_0> for ElementType {
     fn read_constraint(
         ion: &Element,
-        ctx: &LoaderContext<ISL_2_0>,
+        ctx: &ReaderContext<ISL_2_0>,
     ) -> IonSchemaResult<Option<Self>> {
         let distinct = ion.annotations().contains("distinct");
         Ok(Some(ElementType {
