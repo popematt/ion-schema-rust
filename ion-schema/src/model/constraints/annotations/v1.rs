@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::internal_traits::*;
+use crate::loader::ReaderContext;
 use crate::model::constraints::annotations::AnnotationsVariant;
 use crate::model::constraints::{Annotations, ReadConstraint};
 use crate::model::TypeDefinitionBuilder;
@@ -212,7 +213,7 @@ impl WriteAsIsl<ISL_2_0> for AnnotationsV1 {
 impl ReadConstraint<ISL_1_0> for AnnotationsV1 {
     fn read_constraint(
         ion: &Element,
-        ctx: &LoaderContext<ISL_1_0>,
+        ctx: &ReaderContext<ISL_1_0>,
     ) -> IonSchemaResult<Option<Self>> {
         todo!()
     }

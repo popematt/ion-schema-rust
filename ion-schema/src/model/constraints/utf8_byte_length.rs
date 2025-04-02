@@ -1,9 +1,8 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::internal_traits::{
-    LoaderContext, ReadFromIsl, ValidateInternal, ValidationContext, WriteAsIsl, WriteContext,
-};
+use crate::internal_traits::{ValidateInternal, ValidationContext, WriteAsIsl, WriteContext};
+use crate::loader::{ReadFromIsl, ReaderContext};
 use crate::model::constraints::{ConstraintName, ReadConstraint};
 use crate::model::ranges::IonSchemaRange;
 use crate::model::TypeDefinitionBuilder;
@@ -92,7 +91,7 @@ impl<V: IslVersion> WriteAsIsl<V> for Utf8ByteLength {
 }
 
 impl<V: IslVersion> ReadConstraint<V> for Utf8ByteLength {
-    fn read_constraint(ion: &Element, ctx: &LoaderContext<V>) -> IonSchemaResult<Option<Self>> {
+    fn read_constraint(ion: &Element, ctx: &ReaderContext<V>) -> IonSchemaResult<Option<Self>> {
         let range = IonSchemaRange::try_read(ion, ctx)?;
         Ok(Some(Utf8ByteLength { range }))
     }

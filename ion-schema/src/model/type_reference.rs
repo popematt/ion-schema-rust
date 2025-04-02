@@ -1,8 +1,9 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::internal_traits::{LoaderContext, ReadFromIsl, WriteAsIsl, WriteContext};
+use crate::internal_traits::{WriteAsIsl, WriteContext};
 use crate::ion_extension::StructExtensions;
+use crate::loader::{ReadFromIsl, ReaderContext};
 use crate::resolver::TypeCoordinates;
 use crate::result::{invalid_schema, HasIslSourceLocation, IonSchemaResult, IslSourceLocation};
 use crate::IslVersion;
@@ -90,7 +91,7 @@ impl<V: IslVersion> WriteAsIsl<V> for TypeReference {
 }
 
 impl<V: IslVersion> ReadFromIsl<V> for TypeReference {
-    fn try_read(ion: &Element, ctx: &LoaderContext<V>) -> IonSchemaResult<Self> {
+    fn try_read(ion: &Element, ctx: &ReaderContext<V>) -> IonSchemaResult<Self> {
         match ion.value() {
             Value::Symbol(s) => {
                 let mut tr: TypeReference = s.expect_text()?.into();
@@ -118,10 +119,10 @@ impl HasIslSourceLocation for TypeReference {
 
 #[cfg(test)]
 mod tests {
-    use crate::internal_traits::{LoaderContext, ReadFromIsl};
     use crate::model::type_reference::TypeReference;
 
     use crate::result::IslSourceLocation;
+    use crate::loader::{ReadFromIsl, ReaderContext};
     use crate::{ISL_1_0, ISL_2_0};
     use ion_rs::Element;
     use rstest::rstest;
@@ -151,11 +152,11 @@ mod tests {
     fn type_reference_try_read_ok(#[case] ion: &str, #[case] expected: TypeReference) {
         let expected = Ok(expected);
         let element = Element::read_one(ion).unwrap();
-        let load_ctx = LoaderContext::<ISL_1_0>::new();
+        let load_ctx = ReaderContext::<ISL_1_0>::new();
         let result = TypeReference::try_read(&element, &load_ctx);
         assert_eq!(result, expected);
 
-        let load_ctx = LoaderContext::<ISL_2_0>::new();
+        let load_ctx = ReaderContext::<ISL_2_0>::new();
         let result = TypeReference::try_read(&element, &load_ctx);
         assert_eq!(result, expected)
     }
@@ -166,11 +167,11 @@ mod tests {
     #[case::inline_import_must_not_have_other_fields("{id: \"abc\",type:def,as:ghi}")]
     fn type_constraint_try_read_err(#[case] ion: &str) {
         let element = Element::read_one(ion).unwrap();
-        let load_ctx = LoaderContext::<ISL_1_0>::new();
+        let load_ctx = ReaderContext::<ISL_1_0>::new();
         let result = TypeReference::try_read(&element, &load_ctx);
         assert!(result.is_err());
 
-        let load_ctx = LoaderContext::<ISL_2_0>::new();
+        let load_ctx = ReaderContext::<ISL_2_0>::new();
         let result = TypeReference::try_read(&element, &load_ctx);
         assert!(result.is_err())
     }

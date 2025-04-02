@@ -1,9 +1,8 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::internal_traits::{
-    LoaderContext, ValidateInternal, ValidationContext, WriteAsIsl, WriteContext,
-};
+use crate::internal_traits::{ValidateInternal, ValidationContext, WriteAsIsl, WriteContext};
+use crate::loader::ReaderContext;
 use crate::model::constraints::{ConstraintName, ReadConstraint};
 use crate::model::TypeDefinitionBuilder;
 use crate::resolver::*;
@@ -69,7 +68,7 @@ impl ReadConstraint<ISL_1_0> for Ieee754Float {}
 impl ReadConstraint<ISL_2_0> for Ieee754Float {
     fn read_constraint(
         ion: &Element,
-        ctx: &LoaderContext<ISL_2_0>,
+        ctx: &ReaderContext<ISL_2_0>,
     ) -> IonSchemaResult<Option<Self>> {
         todo!()
     }

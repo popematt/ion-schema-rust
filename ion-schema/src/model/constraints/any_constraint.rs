@@ -1,9 +1,8 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::internal_traits::{
-    LoaderContext, ValidateInternal, ValidationContext, WriteAsIsl, WriteContext,
-};
+use crate::internal_traits::{ValidateInternal, ValidationContext, WriteAsIsl, WriteContext};
+use crate::loader::ReaderContext;
 use crate::model::constraints::valid_values::ValidValues;
 use crate::model::constraints::*;
 use crate::resolver::*;
@@ -21,7 +20,7 @@ macro_rules! any_constraint {
         }
 
         impl AnyConstraint {
-            pub(in crate::model) fn read_constraint<V: IslVersion>(name: &str, ion: &Element, ctx: &LoaderContext<V>) -> IonSchemaResult<Option<AnyConstraint>>
+            pub(in crate::model) fn read_constraint<V: IslVersion>(name: &str, ion: &Element, ctx: &ReaderContext<V>) -> IonSchemaResult<Option<AnyConstraint>>
             where $($name : ReadConstraint<V>,)+
             {
                 match name {

@@ -1,10 +1,9 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::internal_traits::{
-    LoaderContext, ReadFromIsl, ValidateInternal, ValidationContext, WriteAsIsl, WriteContext,
-};
+use crate::internal_traits::{ValidateInternal, ValidationContext, WriteAsIsl, WriteContext};
 use crate::ion_schema_version::Versioned;
+use crate::loader::{ReadFromIsl, ReaderContext};
 use crate::model::constraints::{ConstraintName, ReadConstraint};
 use crate::model::type_argument::TypeArgument;
 use crate::model::{TypeDefinition, TypeDefinitionBuilder, VersionedTypeArgument};
@@ -84,7 +83,7 @@ impl<V: IslVersion> ReadConstraint<V> for TypeConstraint
 where
     TypeDefinition: ReadFromIsl<V>,
 {
-    fn read_constraint(ion: &Element, ctx: &LoaderContext<V>) -> IonSchemaResult<Option<Self>> {
+    fn read_constraint(ion: &Element, ctx: &ReaderContext<V>) -> IonSchemaResult<Option<Self>> {
         Ok(Some(TypeConstraint {
             type_argument: TypeArgument::try_read(ion, ctx)?,
         }))
