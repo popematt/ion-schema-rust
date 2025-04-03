@@ -111,9 +111,9 @@ impl TypeDefinitionBuilder<ISL_2_0> {
     ///
     /// # Arguments
     /// * `modifier` - An [`AnnotationsV2Modifier`] that specifies how the annotations should be applied
-    ///               (e.g., required, closed, or both)
+    ///   (e.g., required, closed, or both)
     /// * `annotations` - An iterable collection of items that can be converted into [`Symbol`],
-    ///                  representing the annotation names
+    ///   representing the annotation names
     ///
     /// # Returns
     /// * Returns `Self` to allow for method chaining in the builder pattern
