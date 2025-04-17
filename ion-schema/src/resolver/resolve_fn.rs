@@ -726,7 +726,14 @@ type::{
                 )
                 .build(),
         );
-        assert_resolver_err!(schemas, |e| { e })
+        assert_resolver_err!(schemas, |e| {
+            let description = format!("{e}");
+            let description: Vec<_> = description.lines().collect();
+            assert_eq!(description.len(), 3);
+            assert!(description[0].starts_with("my_schema.isl:5:9"));
+            assert!(description[1].starts_with("my_schema.isl:7:1"));
+            assert!(description[2].starts_with("my_schema.isl:9:9"));
+        })
     }
 
     // Test Fixtures
