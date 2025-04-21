@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::internal_traits::{ValidateInternal, ValidationContext, WriteAsIsl, WriteContext};
-use crate::loader::ReaderContext;
+use crate::loader::{ReadResult, ReaderContext};
 use crate::model::constraints::{ConstraintName, ReadConstraint};
 use crate::model::{IonSchemaRange, TypeDefinitionBuilder};
 use crate::resolver::*;
@@ -70,10 +70,7 @@ impl WriteAsIsl<ISL_1_0> for Scale {
 impl WriteAsIsl<ISL_2_0> for Scale {}
 
 impl ReadConstraint<ISL_1_0> for Scale {
-    fn read_constraint(
-        ion: &Element,
-        ctx: &ReaderContext<ISL_1_0>,
-    ) -> IonSchemaResult<Option<Self>> {
+    fn read_constraint(ion: &Element, ctx: &ReaderContext<ISL_1_0>) -> ReadResult<Option<Self>> {
         todo!()
     }
 }

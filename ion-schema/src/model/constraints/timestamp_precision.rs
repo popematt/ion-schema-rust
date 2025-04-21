@@ -3,12 +3,12 @@
 
 use crate::internal_traits::{ValidateInternal, ValidationContext, WriteAsIsl, WriteContext};
 use crate::ion_extension::ElementExtensions;
-use crate::loader::{ReadFromIsl, ReaderContext};
+use crate::loader::{ReadFromIsl, ReadResult, ReaderContext};
 use crate::model::constraints::{ConstraintName, ReadConstraint};
 use crate::model::ranges::IonSchemaRange;
 use crate::model::TypeDefinitionBuilder;
 use crate::resolver::*;
-use crate::result::{invalid_schema, IonSchemaResult};
+use crate::result::{invalid_schema_2, IonSchemaResult};
 use crate::{IonSchemaElement, IslVersion, ViolationInfo, ViolationRecorder};
 use ion_rs::{Element, IonResult, TimestampPrecision as TSPrecision, ValueWriter, WriteAsIon};
 use std::fmt::{Debug, Display, Formatter};
@@ -73,7 +73,7 @@ impl TimestampPrecisionValue {
 }
 
 impl<V: IslVersion> ReadFromIsl<V> for TimestampPrecisionValue {
-    fn try_read(ion: &Element, ctx: &ReaderContext<V>) -> IonSchemaResult<Self> {
+    fn try_read(ion: &Element, ctx: &ReaderContext<V>) -> ReadResult<Self> {
         match ion.as_symbol_text() {
             Some(TimestampPrecisionValue::YEAR) => Ok(Year),
             Some(TimestampPrecisionValue::MONTH) => Ok(Month),
@@ -83,7 +83,7 @@ impl<V: IslVersion> ReadFromIsl<V> for TimestampPrecisionValue {
             Some(TimestampPrecisionValue::MILLIS) => Ok(Millisecond),
             Some(TimestampPrecisionValue::MICROS) => Ok(Microsecond),
             Some(TimestampPrecisionValue::NANOS) => Ok(Nanosecond),
-            _ => invalid_schema!("not a valid timestamp precision value: {ion}"),
+            _ => invalid_schema_2!(ion, "not a valid timestamp precision value: {ion}"),
         }
     }
 }
@@ -205,7 +205,7 @@ impl<V: IslVersion> WriteAsIsl<V> for TimestampPrecision {
 }
 
 impl<V: IslVersion> ReadConstraint<V> for TimestampPrecision {
-    fn read_constraint(ion: &Element, ctx: &ReaderContext<V>) -> IonSchemaResult<Option<Self>> {
+    fn read_constraint(ion: &Element, ctx: &ReaderContext<V>) -> ReadResult<Option<Self>> {
         let range = IonSchemaRange::try_read(ion, ctx)?;
         Ok(Some(TimestampPrecision::new(range)))
     }
@@ -314,7 +314,7 @@ mod tests {
     fn timestamp_precision_try_read_err(#[case] ion: &str) {
         let element = Element::read_one(ion).unwrap();
         let load_ctx = ReaderContext::<ISL_2_0>::new();
-        let result: IonSchemaResult<Option<TimestampPrecision>> =
+        let result: ReadResult<Option<TimestampPrecision>> =
             TimestampPrecision::read_constraint(&element, &load_ctx);
         assert!(result.is_err())
     }

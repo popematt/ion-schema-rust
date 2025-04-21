@@ -1,10 +1,30 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::result::{invalid_schema, IonSchemaResult};
-use ion_rs::{Decimal, IonResult, Struct, Symbol};
+use crate::loader::ReadResult;
+use crate::result::invalid_schema_2;
+use ion_rs::{Decimal, Sequence, Struct, Symbol};
 use ion_rs::{Element, Value};
 use num_traits::ToPrimitive;
+use paste::paste;
+
+macro_rules! require {
+    ($method:ident -> $return_type:ty ;) => {
+        paste!(
+            fn [< require_ $method >] (&self, location: &str) -> ReadResult<&$return_type>;
+        );
+    };
+    ($method:ident -> $return_type:ty {}) => {
+        paste!(
+            fn [< require_ $method >] (&self, location: &str) -> ReadResult<&$return_type> {
+                match self.[< as_ $method >]() {
+                    Some(value) => Ok(value),
+                    None => invalid_schema_2!(self, "{location} must be a {}", stringify!($method)),
+                }
+            }
+        );
+    };
+}
 
 /// Trait for adding extensions to [`Element`] that are useful for implementing Ion Schema.
 pub(crate) trait ElementExtensions {
@@ -20,10 +40,24 @@ pub(crate) trait ElementExtensions {
     fn any_number_as_decimal(&self) -> Option<Decimal>;
     /// Get up to one annotation from this [`Element`]. If this [`Element`] has more than one
     /// annotation, or if the only annotation has unknown text, returns [`Err`].
-    fn one_optional_annotation(&self) -> IonSchemaResult<Option<&str>>;
+    fn one_optional_annotation(&self) -> ReadResult<Option<&str>>;
     /// If this [`Element`] is an Ion symbol with known text, returns [`Some`] with that text.
     /// Otherwise, returns [`None`].
     fn as_symbol_text(&self) -> Option<&str>;
+
+    /// Gets the value for the given field name, returning Err if there is more than one value with
+    /// that field name.
+    fn get_optional_field(&self, location: &str, field_name: &str) -> ReadResult<Option<&Element>>;
+    /// Gets the value for the given field name, returning Err if there are no values with that
+    /// field name or if there is more than one value with that field name.
+    fn get_required_field(&self, location: &str, field_name: &str) -> ReadResult<&Element>;
+
+    require!(struct -> Struct;);
+    require!(symbol -> Symbol;);
+    require!(list -> Sequence;);
+    require!(string -> str;);
+
+    fn require_known_symbol(&self, location: &str) -> ReadResult<&str>;
 }
 impl ElementExtensions for Element {
     fn as_usize(&self) -> Option<usize> {
@@ -46,64 +80,66 @@ impl ElementExtensions for Element {
             _ => None,
         }
     }
-    fn one_optional_annotation(&self) -> IonSchemaResult<Option<&str>> {
+    fn one_optional_annotation(&self) -> ReadResult<Option<&str>> {
         let mut annotations = self.annotations().iter();
         let Some(symbol) = annotations.next() else {
             return Ok(None);
         };
-        let text = symbol.expect_text()?;
+        let text = match symbol.text() {
+            Some(t) => t,
+            None => invalid_schema_2!(
+                self,
+                "cannot interpret value annotated with unknown symbol text"
+            )?,
+        };
         match annotations.next() {
             None => Ok(Some(text)),
-            Some(_) => invalid_schema!("Unexpected annotations: {self}"),
+            Some(_) => invalid_schema_2!(self, "Unexpected annotations: {self}"),
         }
     }
-
     fn as_symbol_text(&self) -> Option<&str> {
         self.as_symbol().and_then(|s| s.text())
     }
-}
 
-/// Trait for adding extensions to [`Symbol`] that are useful for implementing Ion Schema.
-pub(crate) trait SymbolExtensions: Sized {
-    /// Returns Err if the symbol has unknown text, otherwise returns Ok(self).
-    fn expect_known_symbol(self) -> IonResult<Self>;
-}
-impl SymbolExtensions for Symbol {
-    fn expect_known_symbol(self) -> IonResult<Self> {
-        let result = self.expect_text();
-        match result {
-            Ok(_) => Ok(self),
-            Err(e) => Err(e),
-        }
-    }
-}
-
-/// Trait for adding extensions to [`Struct`] that are useful for implementing Ion Schema.
-pub(crate) trait StructExtensions {
-    /// Gets the value for the given field name, returning Err if there is more than one value with
-    /// that field name.
-    fn get_optional(&self, field_name: &str) -> IonSchemaResult<Option<&Element>>;
-    /// Gets the value for the given field name, returning Err if there are no values with that
-    /// field name or if there is more than one value with that field name.
-    fn get_required(&self, field_name: &str) -> IonSchemaResult<&Element>;
-}
-impl StructExtensions for Struct {
-    fn get_optional(&self, field_name: &str) -> IonSchemaResult<Option<&Element>> {
-        let mut iter = self.get_all(field_name);
+    fn get_optional_field(&self, location: &str, field_name: &str) -> ReadResult<Option<&Element>> {
+        let mut iter = self.require_struct(location)?.get_all(field_name);
         let first = iter.next();
         let second = iter.next();
         if second.is_some() {
-            invalid_schema!("Illegal repeated field '{field_name}' in: {self}")
+            invalid_schema_2!(
+                self,
+                "Illegal repeated field '{field_name}' in {location}"
+            )
         } else {
             Ok(first)
         }
     }
 
-    fn get_required(&self, field_name: &str) -> IonSchemaResult<&Element> {
-        if let Some(element) = self.get_optional(field_name)? {
+    fn get_required_field(&self, location: &str, field_name: &str) -> ReadResult<&Element> {
+        if let Some(element) = self.get_optional_field(location, field_name)? {
             Ok(element)
         } else {
-            invalid_schema!("Missing required field '{field_name}' in: {self}")
+            invalid_schema_2!(
+                self,
+                "Missing required field '{field_name}' in {location}"
+            )
+        }
+    }
+
+    require!(struct -> Struct {});
+    require!(symbol -> Symbol {});
+    require!(string -> str {});
+    require!(list -> Sequence {});
+    fn require_known_symbol(&self, location: &str) -> ReadResult<&str> {
+        match self.as_symbol() {
+            Some(value) => {
+                if let Some(text) = value.text() {
+                    Ok(text)
+                } else {
+                    invalid_schema_2!(self, "{location} must be a symbol with known text")
+                }
+            }
+            None => invalid_schema_2!(self, "{location} must be a symbol"),
         }
     }
 }

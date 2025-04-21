@@ -2,10 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::internal_traits::{WriteAsIsl, WriteContext};
-use crate::ion_extension::StructExtensions;
-use crate::loader::{ReadFromIsl, ReaderContext};
+use crate::ion_extension::ElementExtensions;
+use crate::loader::{ReadFromIsl, ReadResult, ReaderContext};
 use crate::resolver::TypeCoordinates;
-use crate::result::{invalid_schema, HasIslSourceLocation, IonSchemaResult, IslSourceLocation};
+use crate::result::{
+    invalid_schema_2, HasIslSourceLocation, IonSchemaResult,
+    IslSourceLocation,
+};
 use crate::IslVersion;
 use ion_rs::{Element, StructWriter, Value, ValueWriter};
 
@@ -91,22 +94,30 @@ impl<V: IslVersion> WriteAsIsl<V> for TypeReference {
 }
 
 impl<V: IslVersion> ReadFromIsl<V> for TypeReference {
-    fn try_read(ion: &Element, ctx: &ReaderContext<V>) -> IonSchemaResult<Self> {
+    fn try_read(ion: &Element, ctx: &ReaderContext<V>) -> ReadResult<Self> {
         match ion.value() {
             Value::Symbol(s) => {
-                let mut tr: TypeReference = s.expect_text()?.into();
+                let mut tr: TypeReference =
+                    ion.require_known_symbol("named type reference")?.into();
                 tr.source_location = ion.isl_source_location();
                 Ok(tr)
             }
             Value::Struct(s) => {
                 if s.fields().count() != 2 {
-                    return invalid_schema!("Unexpected extra field(s) in inline import: {ion}");
+                    return invalid_schema_2!(
+                        ion,
+                        "Unexpected extra field(s) in inline import: {ion}"
+                    );
                 }
-                let schema_id = s.get_required("id")?.expect_text()?;
-                let type_name = s.get_required("type")?.expect_text()?;
+                let schema_id = ion
+                    .get_required_field("inline import", "id")?
+                    .require_string("schema id")?;
+                let type_name = ion
+                    .get_required_field("inline import", "type")?
+                    .require_known_symbol("type name")?;
                 Ok(TypeReference::imported(schema_id, type_name))
             }
-            other => invalid_schema!("TypeReference must be a symbol or struct; was: {ion}"),
+            other => invalid_schema_2!(ion, "TypeReference must be a symbol or struct; was: {ion}"),
         }
     }
 }
@@ -121,8 +132,8 @@ impl HasIslSourceLocation for TypeReference {
 mod tests {
     use crate::model::type_reference::TypeReference;
 
-    use crate::result::IslSourceLocation;
     use crate::loader::{ReadFromIsl, ReaderContext};
+    use crate::result::IslSourceLocation;
     use crate::{ISL_1_0, ISL_2_0};
     use ion_rs::Element;
     use rstest::rstest;

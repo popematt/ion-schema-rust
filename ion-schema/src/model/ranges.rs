@@ -3,8 +3,11 @@
 
 use crate::internal_traits::{WriteAsIsl, WriteContext};
 use crate::ion_extension::ElementExtensions;
-use crate::loader::{ReadFromIsl, ReaderContext};
-use crate::result::{invalid_schema, isl_require, IonSchemaError, IonSchemaResult};
+use crate::loader::{ReadFromIsl, ReadResult, ReaderContext};
+use crate::result::{
+    invalid_schema, invalid_schema_2, InvalidSchemaError,
+    IonSchemaResult,
+};
 use crate::IslVersion;
 use hidden::RangeBoundType;
 use ion_rs::{Annotatable, Element, SequenceWriter, ValueWriter, WriteAsIon};
@@ -34,7 +37,7 @@ pub struct IonSchemaRange<T> {
 impl<T: RangeBoundType> IonSchemaRange<T> {
     // See https://github.com/amazon-ion/ion-schema/issues/140, which should be resolved before we
     // make this public.
-    pub(crate) fn try_new(min: Bound<T>, max: Bound<T>) -> Result<Self, IonSchemaError> {
+    pub(crate) fn try_new(min: Bound<T>, max: Bound<T>) -> Result<Self, InvalidSchemaError> {
         match (&min, &max) {
             (Unbounded, Unbounded) => Err(()),
             (Excluded(x), Included(y)) if x >= y => Err(()),
@@ -43,7 +46,11 @@ impl<T: RangeBoundType> IonSchemaRange<T> {
             (Included(x), Included(y)) if x > y => Err(()),
             _ => Ok(()),
         }
-        .map_err(|_| invalid_schema!("Invalid range: {min:?} to {max:?}").into())
+        .map_err(|_| {
+            invalid_schema!("Invalid range: {min:?} to {max:?}")
+                .try_into()
+                .unwrap()
+        })
         .map(|_| IonSchemaRange { min, max })
     }
 
@@ -123,38 +130,46 @@ const EXCLUSIVE: &str = "exclusive";
 const RANGE: &str = "range";
 
 impl<V: IslVersion, T: RangeBoundType + ReadFromIsl<V>> ReadFromIsl<V> for IonSchemaRange<T> {
-    fn try_read(ion: &Element, ctx: &ReaderContext<V>) -> IonSchemaResult<Self> {
+    fn try_read(ion: &Element, ctx: &ReaderContext<V>) -> ReadResult<Self> {
         let optional_annotation = ion.one_optional_annotation()?;
         if optional_annotation == Some(RANGE) {
             let Some(seq) = ion.as_list() else {
-                invalid_schema!("range must be a non-null list; found: {ion}")?
+                invalid_schema_2!(ion, "range must be a non-null list; found: {ion}")?
             };
 
-            isl_require!(seq.len() == 2 => "range must have a lower and upper bound; found: {ion}")?;
+            if seq.len() != 2 {
+                invalid_schema_2!(ion, "range must have a lower and upper bound; found: {ion}")?;
+            }
             // We can unwrap these without panicking
             let lower = seq.get(0).unwrap();
             let upper = seq.get(1).unwrap();
 
             let lower = match (lower.as_symbol_text(), lower.one_optional_annotation()?) {
-                (Some(MIN), Some(EXCLUSIVE)) => invalid_schema!("'min' may not be exclusive")?,
+                (Some(MIN), Some(EXCLUSIVE)) => {
+                    invalid_schema_2!(lower, "'min' may not be exclusive")?
+                }
                 (Some(MIN), None) => Unbounded,
                 (_, Some(EXCLUSIVE)) => Excluded(T::try_read(lower, ctx)?),
                 (_, None) => Included(T::try_read(lower, ctx)?),
-                _ => invalid_schema!("invalid annotation on range bound: {lower}")?,
+                _ => invalid_schema_2!(lower, "invalid annotation on range bound: {lower}")?,
             };
             let upper = match (upper.as_symbol_text(), upper.one_optional_annotation()?) {
-                (Some(MAX), Some(EXCLUSIVE)) => invalid_schema!("'max' may not be exclusive")?,
+                (Some(MAX), Some(EXCLUSIVE)) => {
+                    invalid_schema_2!(upper, "'max' may not be exclusive")?
+                }
                 (Some(MAX), None) => Unbounded,
                 (_, Some(EXCLUSIVE)) => Excluded(T::try_read(upper, ctx)?),
                 (_, None) => Included(T::try_read(upper, ctx)?),
-                _ => invalid_schema!("invalid annotation on range bound: {upper}")?,
+                _ => invalid_schema_2!(upper, "invalid annotation on range bound: {upper}")?,
             };
 
             Ok(IonSchemaRange::try_new(lower, upper)?)
         } else {
-            isl_require!(optional_annotation.is_none() => "invalid annotation on range; found: {ion}")?;
-            let value: T =
-                T::try_read(ion, ctx).map_err(|_| invalid_schema!("invalid range value: {ion}"))?;
+            if optional_annotation.is_some() {
+                invalid_schema_2!(ion, "invalid annotation on range; found: {ion}")?;
+            }
+            let value: T = T::try_read(ion, ctx)
+                .map_err(|_| invalid_schema_2!(ion, "invalid range value: {ion}"))?;
             Ok(IonSchemaRange::from(value))
         }
     }
@@ -199,9 +214,9 @@ from_range!(RangeToInclusive);
 #[cfg(test)]
 mod tests {
     use crate::internal_traits::*;
-    use crate::loader::{ReadFromIsl, ReaderContext};
+    use crate::loader::{ReadFromIsl, ReadResult, ReaderContext};
     use crate::model::ranges::IonSchemaRange;
-    use crate::result::IonSchemaResult;
+    
     use crate::ISL_2_0;
     use ion_rs::v1_0::Text;
     use ion_rs::{Element, SequenceWriter, Writer};
@@ -305,7 +320,7 @@ mod tests {
     fn range_try_read_err(#[case] ion: &str) {
         let element = Element::read_one(ion).unwrap();
         let load_ctx = ReaderContext::<ISL_2_0>::new();
-        let result: IonSchemaResult<IonSchemaRange<usize>> =
+        let result: ReadResult<IonSchemaRange<usize>> =
             IonSchemaRange::try_read(&element, &load_ctx);
         assert!(result.is_err())
     }

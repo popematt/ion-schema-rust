@@ -1,10 +1,12 @@
-use crate::loader::{ReadFromIsl, ReaderContext};
 use crate::isl::isl_import::{IslImport, IslImportType};
 use crate::isl::isl_type::IslType;
 use crate::isl::ranges::{Limit, UsizeRange};
 use crate::isl::IslVersion;
 use crate::isl_require;
-use crate::result::{invalid_schema, unresolvable_schema_error, IonSchemaResult};
+use crate::loader::{ReadFromIsl, ReadResult, ReaderContext};
+use crate::result::{
+    invalid_schema, unresolvable_schema_error, IonSchemaResult,
+};
 use crate::system::{PendingTypes, TypeId, TypeStore};
 use crate::type_reference::{TypeReference, VariablyOccurringTypeRef};
 use crate::types::TypeDefinitionImpl;
@@ -99,7 +101,7 @@ impl NullabilityModifier {
 }
 
 impl<V: crate::ion_schema_version::IslVersion> ReadFromIsl<V> for NullabilityModifier {
-    fn try_read(ion: &Element, ctx: &ReaderContext<V>) -> IonSchemaResult<Self> {
+    fn try_read(ion: &Element, ctx: &ReaderContext<V>) -> ReadResult<Self> {
         Ok(match V::MAJOR_MINOR {
             (1, _) => {
                 if ion.annotations().contains("nullable") {

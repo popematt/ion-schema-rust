@@ -4,12 +4,12 @@
 use crate::internal_traits::{WriteAsIsl, WriteContext};
 use crate::ion_schema_version::Versioned;
 use crate::isl::isl_type_reference::NullabilityModifier;
-use crate::loader::{ReadFromIsl, ReaderContext};
+use crate::loader::{ReadFromIsl, ReadResult, ReaderContext};
 use crate::model::type_definition::TypeDefinition;
 use crate::model::type_reference::TypeReference;
 use crate::model::VersionedTypeDefinition;
 use crate::resolver::*;
-use crate::result::{invalid_schema, IonSchemaResult};
+use crate::result::{invalid_schema, invalid_schema_2, IonSchemaResult};
 use crate::{IslVersion, ISL_1_0, ISL_2_0};
 use ion_rs::{Element, Value, ValueWriter};
 
@@ -91,7 +91,7 @@ impl<V: IslVersion> ReadFromIsl<V> for TypeArgument
 where
     TypeDefinition: ReadFromIsl<V>,
 {
-    fn try_read(ion: &Element, ctx: &ReaderContext<V>) -> IonSchemaResult<Self> {
+    fn try_read(ion: &Element, ctx: &ReaderContext<V>) -> ReadResult<Self> {
         let nullability_modifier = ReadFromIsl::try_read(ion, ctx)?;
         let kind = match ion.value() {
             Value::Symbol(s) => TypeArgumentKind::TypeReference(TypeReference::try_read(ion, ctx)?),
@@ -103,7 +103,7 @@ where
                     TypeArgumentKind::InlineType(ty)
                 }
             }
-            other => invalid_schema!("not a type argument: {other}")?,
+            other => invalid_schema_2!(ion, "not a type argument")?,
         };
         Ok(TypeArgument {
             nullability_modifier,

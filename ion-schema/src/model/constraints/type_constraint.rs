@@ -3,7 +3,7 @@
 
 use crate::internal_traits::{ValidateInternal, ValidationContext, WriteAsIsl, WriteContext};
 use crate::ion_schema_version::Versioned;
-use crate::loader::{ReadFromIsl, ReaderContext};
+use crate::loader::{ReadFromIsl, ReadResult, ReaderContext};
 use crate::model::constraints::{ConstraintName, ReadConstraint};
 use crate::model::type_argument::TypeArgument;
 use crate::model::{TypeDefinition, TypeDefinitionBuilder, VersionedTypeArgument};
@@ -83,7 +83,7 @@ impl<V: IslVersion> ReadConstraint<V> for TypeConstraint
 where
     TypeDefinition: ReadFromIsl<V>,
 {
-    fn read_constraint(ion: &Element, ctx: &ReaderContext<V>) -> IonSchemaResult<Option<Self>> {
+    fn read_constraint(ion: &Element, ctx: &ReaderContext<V>) -> ReadResult<Option<Self>> {
         Ok(Some(TypeConstraint {
             type_argument: TypeArgument::try_read(ion, ctx)?,
         }))

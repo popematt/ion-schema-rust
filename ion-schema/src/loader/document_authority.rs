@@ -28,10 +28,10 @@ pub enum DocumentAuthorityResponse {
 /// The content of an Ion Schema document
 pub(crate) struct DocumentContent {
     // TODO: Consider adding support for lazily-read documents
-    elements: Vec<Element>
+    elements: Vec<Element>,
 }
 impl DocumentContent {
-    pub(crate) fn into_iter(self) -> impl Iterator<Item=Element> {
+    pub(crate) fn into_iter(self) -> impl Iterator<Item = Element> {
         self.elements.into_iter()
     }
 }
@@ -48,7 +48,7 @@ impl From<Vec<Element>> for DocumentContent {
 }
 impl<'a> From<&'a [Element]> for DocumentContent {
     fn from(value: &'a [Element]) -> Self {
-        let elements = value.iter().cloned().collect();
+        let elements = value.to_vec();
         Self { elements }
     }
 }
@@ -156,23 +156,29 @@ composite_document_authority!(0, 1, 2, 3, 4, 5, 6, 7, 8, 9);
 mod tests {
     use crate::loader::{DocumentAuthority, DocumentContent};
     use crate::result::IonSchemaResult;
+    use ion_rs::Element;
 
     impl DocumentAuthority for (String, String) {
         fn elements(&self, id: &str) -> IonSchemaResult<Option<DocumentContent>> {
             if self.0 == id {
-                Some()
+                Ok(Some(
+                    Element::read_all(&self.1)?
+                        .iter()
+                        .cloned()
+                        .collect::<Vec<_>>()
+                        .into(),
+                ))
             } else {
                 Ok(None)
             }
         }
     }
 
-    #[test]
-    fn test_authorities() {
-        let authorities = (
-            [],
-
-            );
-    }
-
+    // #[test]
+    // fn test_authorities() {
+    //     let authorities = (
+    //         [],
+    //
+    //         );
+    // }
 }

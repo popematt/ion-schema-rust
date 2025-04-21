@@ -3,12 +3,12 @@
 
 use crate::internal_traits::*;
 use crate::ion_schema_version::Versioned;
-use crate::loader::{ReadFromIsl, ReaderContext};
+use crate::loader::{ReadFromIsl, ReadResult, ReaderContext};
 use crate::model::constraints::{ConstraintName, ReadConstraint};
 use crate::model::type_argument::TypeArgument;
 use crate::model::{TypeDefinitionBuilder, VersionedTypeArgument};
 use crate::resolver::*;
-use crate::result::{invalid_schema, IonSchemaResult};
+use crate::result::{invalid_schema, InvalidSchemaError, IonSchemaResult};
 use crate::{IonSchemaElement, IslVersion, ViolationRecorder, ISL_1_0, ISL_2_0};
 use ion_rs::{Element, ValueWriter};
 use std::ops::ControlFlow;
@@ -115,7 +115,7 @@ impl WriteAsIsl<ISL_2_0> for ElementType {
 }
 
 impl ReadFromIsl<ISL_1_0> for ElementType {
-    fn try_read(ion: &Element, ctx: &ReaderContext<ISL_1_0>) -> IonSchemaResult<Self> {
+    fn try_read(ion: &Element, ctx: &ReaderContext<ISL_1_0>) -> Result<Self, InvalidSchemaError> {
         Ok(ElementType {
             distinct: false,
             type_argument: TypeArgument::try_read(ion, ctx)?,
@@ -124,10 +124,7 @@ impl ReadFromIsl<ISL_1_0> for ElementType {
 }
 
 impl ReadConstraint<ISL_1_0> for ElementType {
-    fn read_constraint(
-        ion: &Element,
-        ctx: &ReaderContext<ISL_1_0>,
-    ) -> IonSchemaResult<Option<Self>> {
+    fn read_constraint(ion: &Element, ctx: &ReaderContext<ISL_1_0>) -> ReadResult<Option<Self>> {
         Ok(Some(ElementType {
             distinct: false,
             type_argument: TypeArgument::try_read(ion, ctx)?,
@@ -136,10 +133,7 @@ impl ReadConstraint<ISL_1_0> for ElementType {
 }
 
 impl ReadConstraint<ISL_2_0> for ElementType {
-    fn read_constraint(
-        ion: &Element,
-        ctx: &ReaderContext<ISL_2_0>,
-    ) -> IonSchemaResult<Option<Self>> {
+    fn read_constraint(ion: &Element, ctx: &ReaderContext<ISL_2_0>) -> ReadResult<Option<Self>> {
         let distinct = ion.annotations().contains("distinct");
         Ok(Some(ElementType {
             distinct,

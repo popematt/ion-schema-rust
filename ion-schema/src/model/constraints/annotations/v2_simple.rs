@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::internal_traits::*;
-use crate::ion_extension::SymbolExtensions;
-use crate::loader::ReaderContext;
+use crate::ion_extension::ElementExtensions;
+use crate::loader::{ReadResult, ReaderContext};
 use crate::model::constraints::annotations::AnnotationsVariant;
 use crate::model::constraints::AnnotationsV2Modifier::{Closed, ClosedAndRequired, Required};
 use crate::model::constraints::{Annotations, ReadConstraint};
 use crate::model::TypeDefinitionBuilder;
-use crate::result::{invalid_schema, IonSchemaResult};
+use crate::result::{invalid_schema_2, IonSchemaResult};
 use crate::{IonSchemaElement, ISL_1_0, ISL_2_0};
 use ion_rs::{Element, Symbol, ValueWriter};
 use std::ops::ControlFlow;
@@ -168,18 +168,15 @@ impl WriteAsIsl<ISL_2_0> for AnnotationsV2Simple {
 impl ReadConstraint<ISL_1_0> for AnnotationsV2Simple {}
 
 impl ReadConstraint<ISL_2_0> for AnnotationsV2Simple {
-    fn read_constraint(
-        ion: &Element,
-        ctx: &ReaderContext<ISL_2_0>,
-    ) -> IonSchemaResult<Option<Self>> {
+    fn read_constraint(ion: &Element, ctx: &ReaderContext<ISL_2_0>) -> ReadResult<Option<Self>> {
         let required = ion.annotations().contains("required");
         let closed = ion.annotations().contains("closed");
         let annotations_len = ion.annotations().len();
 
         if annotations_len != (required as usize + closed as usize) {
-            return invalid_schema!(
-                "unexpected annotations on annotations constraint argument: {}",
-                ion
+            return invalid_schema_2!(
+                ion,
+                "unexpected annotations on annotations constraint argument: {ion}"
             );
         }
 
@@ -188,23 +185,13 @@ impl ReadConstraint<ISL_2_0> for AnnotationsV2Simple {
             (true, false) => Closed,
             (false, true) => Required,
             (false, false) => {
-                return invalid_schema!("annotations must be closed, required, or both: {}", ion)
+                return invalid_schema_2!(ion, "annotations must be closed, required, or both")
             }
         };
         let annotations = ion
-            .as_list()
-            .ok_or_else(|| {
-                invalid_schema!(
-                    "annotations constraint requires a list of annotations, found: {}",
-                    ion
-                )
-            })?
+            .require_list("annotations constraint")?
             .iter()
-            .map(|el| {
-                el.expect_symbol()
-                    .cloned()
-                    .and_then(|symbol| symbol.expect_known_symbol())
-            })
+            .map(|el| el.require_symbol("annotations list elements").cloned())
             .collect::<Result<Vec<Symbol>, _>>()?;
 
         Ok(Some(AnnotationsV2Simple {

@@ -3,7 +3,7 @@
 
 use crate::constraint::RegexConstraint;
 use crate::internal_traits::{ValidateInternal, ValidationContext, WriteAsIsl, WriteContext};
-use crate::loader::ReaderContext;
+use crate::loader::{ReadResult, ReaderContext};
 use crate::model::constraints::{ConstraintName, ReadConstraint};
 use crate::model::type_argument::TypeArgument;
 use crate::model::TypeDefinitionBuilder;
@@ -194,7 +194,7 @@ where
 }
 
 impl<V: IslVersion> ReadConstraint<V> for Regex {
-    fn read_constraint(ion: &Element, ctx: &ReaderContext<V>) -> IonSchemaResult<Option<Self>> {
+    fn read_constraint(ion: &Element, ctx: &ReaderContext<V>) -> ReadResult<Option<Self>> {
         todo!()
     }
 }

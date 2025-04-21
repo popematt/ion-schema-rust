@@ -20,7 +20,7 @@ macro_rules! any_constraint {
         }
 
         impl AnyConstraint {
-            pub(in crate::model) fn read_constraint<V: IslVersion>(name: &str, ion: &Element, ctx: &ReaderContext<V>) -> IonSchemaResult<Option<AnyConstraint>>
+            pub(in crate::model) fn read_constraint<V: IslVersion>(name: &str, ion: &Element, ctx: &ReaderContext<V>) -> ReadResult<Option<AnyConstraint>>
             where $($name : ReadConstraint<V>,)+
             {
                 match name {

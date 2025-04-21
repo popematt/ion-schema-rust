@@ -10,7 +10,7 @@ pub use v2_simple::*;
 pub use v2_standard::*;
 
 use crate::internal_traits::{ValidateInternal, ValidationContext, WriteAsIsl, WriteContext};
-use crate::loader::ReaderContext;
+use crate::loader::{ReadResult, ReaderContext};
 use crate::model::constraints::{ConstraintName, ReadConstraint};
 use crate::model::type_argument::TypeArgument;
 use crate::resolver::*;
@@ -119,10 +119,7 @@ where
 }
 
 impl ReadConstraint<ISL_1_0> for Annotations {
-    fn read_constraint(
-        ion: &Element,
-        ctx: &ReaderContext<ISL_1_0>,
-    ) -> IonSchemaResult<Option<Self>> {
+    fn read_constraint(ion: &Element, ctx: &ReaderContext<ISL_1_0>) -> ReadResult<Option<Self>> {
         match v1::AnnotationsV1::read_constraint(ion, ctx) {
             Ok(Some(v1)) => Ok(Some(Annotations {
                 variant: AnnotationsVariant::V1(v1),
@@ -134,10 +131,7 @@ impl ReadConstraint<ISL_1_0> for Annotations {
 }
 
 impl ReadConstraint<ISL_2_0> for Annotations {
-    fn read_constraint(
-        ion: &Element,
-        ctx: &ReaderContext<ISL_2_0>,
-    ) -> IonSchemaResult<Option<Self>> {
+    fn read_constraint(ion: &Element, ctx: &ReaderContext<ISL_2_0>) -> ReadResult<Option<Self>> {
         if ion.ion_type() == IonType::List {
             match AnnotationsV2Simple::read_constraint(ion, ctx) {
                 Ok(Some(v2_simple)) => Ok(Some(Annotations {

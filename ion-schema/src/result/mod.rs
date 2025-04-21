@@ -9,10 +9,10 @@ mod isl_source_location;
 pub use invalid_schema_error::InvalidSchemaError;
 pub(crate) use invalid_schema_error::InvalidSchemaErrorCollector;
 pub(crate) use isl_source_location::*;
+use std::convert::Infallible;
 
 use crate::violation::Violation;
 use ion_rs::IonError;
-use std::convert::Infallible;
 use std::fmt::Debug;
 use std::io;
 use std::io::Error;
@@ -32,6 +32,12 @@ impl From<Result<Infallible, IonSchemaError>> for IonSchemaError {
 impl From<Result<Infallible, InvalidSchemaError>> for IonSchemaError {
     fn from(value: Result<Infallible, InvalidSchemaError>) -> Self {
         IonSchemaError::InvalidSchemaError(value.unwrap_err())
+    }
+}
+
+impl From<Result<Infallible, InvalidSchemaError>> for InvalidSchemaError {
+    fn from(value: Result<Infallible, InvalidSchemaError>) -> Self {
+        value.unwrap_err()
     }
 }
 
@@ -110,6 +116,7 @@ pub fn unresolvable_schema_error_raw<S: AsRef<str>>(description: S) -> IonSchema
 }
 
 /// Creates an [`IonSchemaError::InvalidSchemaError`]
+/// TODO: delete me once old code is removed.
 macro_rules! invalid_schema {
     ($($schema_id:ident, $($loc:ident,)?)? $fmt_string:literal $($args:tt)*) => {
         Result::Err(
@@ -121,6 +128,19 @@ macro_rules! invalid_schema {
     };
 }
 pub(crate) use invalid_schema;
+
+/// Creates an [`InvalidSchemaError`]
+macro_rules! invalid_schema_2 {
+    ($loc:expr, $(schema = $schema_id:expr,)?  $fmt_string:literal $($args:tt)*) => {
+        Result::Err(
+            crate::result::InvalidSchemaError::builder(format!($fmt_string $($args)*))
+                $(.with_schema_id($schema_id))?
+                .with_isl_source_location($loc)
+                .build()
+        )
+    };
+}
+pub(crate) use invalid_schema_2;
 
 /// A macro that checks some condition required to be valid ISL.
 ///

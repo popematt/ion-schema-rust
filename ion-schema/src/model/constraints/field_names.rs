@@ -3,7 +3,7 @@
 
 use crate::internal_traits::*;
 use crate::ion_schema_version::Versioned;
-use crate::loader::{ReadFromIsl, ReaderContext};
+use crate::loader::{ReadFromIsl, ReadResult, ReaderContext};
 use crate::model::constraints::{ConstraintName, ReadConstraint};
 use crate::model::type_argument::TypeArgument;
 use crate::model::{TypeDefinitionBuilder, VersionedTypeArgument};
@@ -100,10 +100,7 @@ impl WriteAsIsl<ISL_2_0> for FieldNames {
 impl ReadConstraint<ISL_1_0> for FieldNames {}
 
 impl ReadConstraint<ISL_2_0> for FieldNames {
-    fn read_constraint(
-        ion: &Element,
-        ctx: &ReaderContext<ISL_2_0>,
-    ) -> IonSchemaResult<Option<Self>> {
+    fn read_constraint(ion: &Element, ctx: &ReaderContext<ISL_2_0>) -> ReadResult<Option<Self>> {
         let distinct = ion.annotations().contains("distinct");
         Ok(Some(FieldNames {
             distinct,

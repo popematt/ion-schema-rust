@@ -295,7 +295,7 @@ pub fn unresolve(
 
 #[cfg(test)]
 mod tests {
-    use crate::internal_traits::{LoaderContext, ReadFromIsl};
+    use crate::loader::{ReadFromIsl, ReaderContext};
     use crate::model::constraints::FieldsContent;
     use crate::model::*;
     use crate::resolver::{resolve, unresolve, ResolvedSchema, TypeCoordinates, TypeRefWalker};
@@ -704,7 +704,7 @@ type::{
 
         let schema_items = Element::read_all(schema_ion).unwrap();
 
-        let ctx = LoaderContext::<ISL_2_0>::new();
+        let ctx = ReaderContext::<ISL_2_0>::new();
         let mut schemas = HashMap::new();
         schemas.insert(
             "my_schema.isl".to_string(),

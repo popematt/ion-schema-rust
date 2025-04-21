@@ -1,11 +1,10 @@
 // Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::loader::{ReadFromIsl, ReaderContext};
+use crate::loader::{ReadFromIsl, ReadResult, ReaderContext};
 use crate::model::schema::schema_doc_builder_state::{BeforeHeader, HasFooter, Types};
 use crate::model::{bag, Bag, SchemaHeader, TypeDefinition, VersionedTypeDefinition};
 use crate::resolver::*;
-use crate::result::IonSchemaResult;
 use crate::{IslVersion, Versioned};
 use ion_rs::Element;
 use std::collections::HashMap;
@@ -242,7 +241,7 @@ impl SchemaFooter {
     }
 }
 impl<V: IslVersion> ReadFromIsl<V> for SchemaFooter {
-    fn try_read(ion: &Element, ctx: &ReaderContext<V>) -> IonSchemaResult<Self> {
+    fn try_read(ion: &Element, ctx: &ReaderContext<V>) -> ReadResult<Self> {
         todo!()
     }
 }

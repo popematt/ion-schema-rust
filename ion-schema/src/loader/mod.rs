@@ -8,10 +8,7 @@ mod schema_reader;
 
 use crate::model::SchemaDocument;
 use crate::result::IonSchemaResult;
-use crate::IslVersion;
 use load_fn::*;
-use std::borrow::Borrow;
-use std::fmt::Debug;
 
 use crate::resolver::{resolve, ResolvedSchema};
 pub use document_authority::*;

@@ -1,12 +1,12 @@
 use crate::internal_traits::{ValidateInternal, ValidationContext, WriteAsIsl, WriteContext};
 use crate::ion_extension::ElementExtensions;
-use crate::loader::{ReadFromIsl, ReaderContext};
+use crate::loader::{ReadFromIsl, ReadResult, ReaderContext};
 use crate::model::bag::{bag, Bag};
 use crate::model::constraints::{ConstraintName, ReadConstraint};
 use crate::model::ranges::IonSchemaRange;
 use crate::model::TypeDefinitionBuilder;
 use crate::resolver::*;
-use crate::result::{invalid_schema, IonSchemaResult};
+use crate::result::{invalid_schema_2, IonSchemaResult};
 use crate::{IonSchemaElement, IslVersion, ViolationRecorder};
 use ion_rs::{Decimal, Element, SequenceWriter, Timestamp, ValueWriter};
 use ion_rs::{Value as IonValue, Value};
@@ -112,14 +112,14 @@ impl<V: IslVersion> WriteAsIsl<V> for ValidValues {
 }
 
 impl<V: IslVersion> ReadConstraint<V> for ValidValues {
-    fn read_constraint(ion: &Element, ctx: &ReaderContext<V>) -> IonSchemaResult<Option<Self>> {
+    fn read_constraint(ion: &Element, ctx: &ReaderContext<V>) -> ReadResult<Option<Self>> {
         // It can be a single range, or a list of arguments. Either way, it must be a list.
         // First, we'll try reading it as a range.
         let values = if (ion.one_optional_annotation()?).is_some() {
             bag![read_one_range(ion, ctx)?]
         } else {
-            let c: IonSchemaResult<_> = ion
-                .expect_list()?
+            let c: ReadResult<_> = ion
+                .require_list("valid_values")?
                 .elements()
                 .map(|ion| read_one_argument(ion, ctx))
                 .collect();
@@ -132,7 +132,7 @@ impl<V: IslVersion> ReadConstraint<V> for ValidValues {
 fn read_one_argument<V: IslVersion>(
     ion: &Element,
     ctx: &ReaderContext<V>,
-) -> IonSchemaResult<ValidValuesArgument> {
+) -> ReadResult<ValidValuesArgument> {
     if (ion.one_optional_annotation()?).is_some() {
         read_one_range(ion, ctx)
     } else {
@@ -143,7 +143,7 @@ fn read_one_argument<V: IslVersion>(
 fn read_one_range<V: IslVersion>(
     ion: &Element,
     ctx: &ReaderContext<V>,
-) -> IonSchemaResult<ValidValuesArgument> {
+) -> ReadResult<ValidValuesArgument> {
     let range = if let Ok(range) = IonSchemaRange::try_read(ion, ctx) {
         ValidValuesArgument::TimestampRange(range)
     } else {
@@ -203,12 +203,16 @@ impl From<IonSchemaRange<Timestamp>> for ValidValuesArgument {
 struct NumberRangeValue(Decimal);
 
 impl<V: IslVersion> ReadFromIsl<V> for NumberRangeValue {
-    fn try_read(ion: &Element, ctx: &ReaderContext<V>) -> IonSchemaResult<Self> {
+    fn try_read(ion: &Element, ctx: &ReaderContext<V>) -> ReadResult<Self> {
         let value = match ion.value() {
             Value::Int(i) => NumberRangeValue(Decimal::from(*i)),
-            Value::Float(f) if f.is_finite() => NumberRangeValue(Decimal::try_from(*f)?),
+            Value::Float(f) if f.is_finite() => {
+                NumberRangeValue(Decimal::try_from(*f).map_err(|_| {
+                    invalid_schema_2!(ion, "Not a valid number range boundary: {f}")
+                })?)
+            }
             Value::Decimal(d) => NumberRangeValue(*d),
-            other => invalid_schema!("Not a valid number range boundary: {other}")?,
+            other => invalid_schema_2!(ion, "Not a valid number range boundary: {other}")?,
         };
         Ok(value)
     }

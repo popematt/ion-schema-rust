@@ -3,7 +3,7 @@
 
 use crate::internal_traits::{ValidateInternal, ValidationContext, WriteAsIsl, WriteContext};
 use crate::ion_schema_version::Versioned;
-use crate::loader::ReaderContext;
+use crate::loader::{ReadResult, ReaderContext};
 use crate::model::constraints::{ConstraintName, ReadConstraint};
 use crate::model::type_argument::TypeArgument;
 use crate::model::variable_type_argument::{
@@ -172,19 +172,13 @@ where
 }
 
 impl ReadConstraint<ISL_1_0> for Fields {
-    fn read_constraint(
-        ion: &Element,
-        ctx: &ReaderContext<ISL_1_0>,
-    ) -> IonSchemaResult<Option<Self>> {
+    fn read_constraint(ion: &Element, ctx: &ReaderContext<ISL_1_0>) -> ReadResult<Option<Self>> {
         todo!()
     }
 }
 
 impl ReadConstraint<ISL_2_0> for Fields {
-    fn read_constraint(
-        ion: &Element,
-        ctx: &ReaderContext<ISL_2_0>,
-    ) -> IonSchemaResult<Option<Self>> {
+    fn read_constraint(ion: &Element, ctx: &ReaderContext<ISL_2_0>) -> ReadResult<Option<Self>> {
         todo!()
     }
 }

@@ -3,7 +3,7 @@
 
 use crate::internal_traits::{ValidateInternal, ValidationContext, WriteAsIsl, WriteContext};
 use crate::ion_schema_version::Versioned;
-use crate::loader::ReaderContext;
+use crate::loader::{ReadResult, ReaderContext};
 use crate::model::constraints::{ConstraintName, ReadConstraint};
 use crate::model::type_argument::TypeArgument;
 use crate::model::variable_type_argument::{
@@ -75,7 +75,7 @@ where
 }
 
 impl<V: IslVersion> ReadConstraint<V> for OrderedElements {
-    fn read_constraint(ion: &Element, ctx: &ReaderContext<V>) -> IonSchemaResult<Option<Self>> {
+    fn read_constraint(ion: &Element, ctx: &ReaderContext<V>) -> ReadResult<Option<Self>> {
         todo!()
     }
 }

@@ -2,12 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::internal_traits::{ValidateInternal, ValidationContext, WriteAsIsl, WriteContext};
+use crate::ion_extension::ElementExtensions;
 use crate::ion_schema_version::Versioned;
 use crate::loader::{ReadFromIsl, ReaderContext};
 use crate::model::bag::Bag;
 use crate::model::constraints::*;
 use crate::resolver::impl_type_ref_walker;
-use crate::result::{HasIslSourceLocation, IonSchemaResult, IslSourceLocation};
+use crate::result::{
+    invalid_schema_2, HasIslSourceLocation, InvalidSchemaError, IonSchemaResult, IslSourceLocation,
+};
 use crate::{IonSchemaElement, IslVersion, ViolationRecorder, ISL_1_0, ISL_2_0};
 use ion_rs::{Element, IonData, StructWriter, Symbol, ValueWriter};
 use std::marker::PhantomData;
@@ -155,13 +158,18 @@ where
 }
 
 impl ReadFromIsl<ISL_1_0> for TypeDefinition {
-    fn try_read(ion: &Element, ctx: &ReaderContext<ISL_1_0>) -> IonSchemaResult<Self> {
-        let struct_ = ion.expect_struct()?;
+    fn try_read(ion: &Element, ctx: &ReaderContext<ISL_1_0>) -> Result<Self, InvalidSchemaError> {
+        let struct_ = ion.require_struct("type definition")?;
         let mut builder = TypeDefinitionBuilder::<ISL_1_0>::new();
         let mut child_ctx = *ctx;
         child_ctx.is_top_level = false;
         for (name, value) in struct_.fields() {
-            let constraint_name = name.expect_text()?;
+            let Some(constraint_name) = name.text() else {
+                invalid_schema_2!(
+                    value,
+                    "cannot interpret fields where the field name has unknown text"
+                )?
+            };
             if constraint_name == "name" && ctx.is_top_level {
                 // Ignore "name" if we're in a top-level type declaration. It's handled in SchemaItem.
                 continue;
@@ -180,13 +188,18 @@ impl ReadFromIsl<ISL_1_0> for TypeDefinition {
 }
 
 impl ReadFromIsl<ISL_2_0> for TypeDefinition {
-    fn try_read(ion: &Element, ctx: &ReaderContext<ISL_2_0>) -> IonSchemaResult<Self> {
-        let struct_ = ion.expect_struct()?;
+    fn try_read(ion: &Element, ctx: &ReaderContext<ISL_2_0>) -> Result<Self, InvalidSchemaError> {
+        let struct_ = ion.require_struct("type definition")?;
         let mut builder = TypeDefinitionBuilder::<ISL_2_0>::new();
         let mut child_ctx = *ctx;
         child_ctx.is_top_level = false;
         for (name, value) in struct_.fields() {
-            let constraint_name = name.expect_text()?;
+            let Some(constraint_name) = name.text() else {
+                invalid_schema_2!(
+                    value,
+                    "cannot interpret fields where the field name has unknown text"
+                )?
+            };
             if constraint_name == "name" && ctx.is_top_level {
                 // Ignore "name" if we're in a top-level type declaration. It's handled in SchemaItem.
                 continue;
