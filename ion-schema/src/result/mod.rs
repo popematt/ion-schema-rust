@@ -7,12 +7,13 @@ mod invalid_schema_error;
 mod isl_source_location;
 
 pub use invalid_schema_error::InvalidSchemaError;
+pub(crate) use invalid_schema_error::InvalidSchemaErrorCollector;
 pub(crate) use isl_source_location::*;
 
 use crate::violation::Violation;
 use ion_rs::IonError;
 use std::convert::Infallible;
-use std::fmt::{Debug, Write};
+use std::fmt::Debug;
 use std::io;
 use std::io::Error;
 use thiserror::Error;

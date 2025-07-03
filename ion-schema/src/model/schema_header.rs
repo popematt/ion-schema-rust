@@ -94,6 +94,22 @@ impl Import {
             .and_then(|type_import| type_import.alias.as_deref())
     }
 }
+impl Display for Import {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str("{id:")?;
+        f.write_str(&self.schema_id)?;
+        if let Some(name) = self.type_name() {
+            f.write_str(",type:")?;
+            f.write_str(name)?;
+            if let Some(alias) = self.type_alias() {
+                f.write_str(",as:")?;
+                f.write_str(alias)?;
+            }
+        }
+        f.write_char('}')?;
+        Ok(())
+    }
+}
 impl HasIslSourceLocation for Import {
     fn isl_source_location(&self) -> IslSourceLocation {
         self.source_location

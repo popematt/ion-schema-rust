@@ -13,7 +13,7 @@ pub use resolved_schema::*;
 pub(crate) use type_ref_visitor::*;
 
 /// A schema index and type index.
-#[derive(Copy, Clone, Debug, Ord, PartialOrd, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub(crate) struct TypeCoordinates(usize, usize);
 impl TypeCoordinates {
     #[cfg(test)]

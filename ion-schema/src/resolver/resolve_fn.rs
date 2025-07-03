@@ -2,8 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 pub(crate) use super::*;
-use crate::model::{SchemaDocument, TypeReference};
-use crate::result::{invalid_schema, IonSchemaResult};
+use crate::model::{SchemaDocument, SchemaItem, TypeReference};
+use crate::result::{
+    invalid_schema as ion_schema_error_invalid_schema, InvalidSchemaError,
+    InvalidSchemaErrorCollector,
+};
+use crate::IonSchemaResult;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -11,6 +15,17 @@ use std::sync::Arc;
 type Map<K, V> = HashMap<K, V>;
 type CoordinatesMap = Map<String, TypeCoordinates>;
 type SchemaSlice = [(String, SchemaDocument)];
+type ResolverResult<T> = Result<T, InvalidSchemaError>;
+
+// Shim to change the return type of invalid_schema! from IonSchemaError to InvalidSchemaError
+macro_rules! invalid_schema {
+    ($($tt:tt)+) => {
+        {
+            let error: InvalidSchemaError = ion_schema_error_invalid_schema!($($tt)+).try_into().unwrap();
+            error
+        }
+    };
+}
 
 /// Builds a lookup table for the type coordinates of all types declared in all schemas.
 fn build_global_coordinates(schemas: &SchemaSlice) -> Map<String, CoordinatesMap> {
@@ -18,21 +33,44 @@ fn build_global_coordinates(schemas: &SchemaSlice) -> Map<String, CoordinatesMap
         .iter()
         .enumerate()
         .map(|(schema_idx, (schema_id, _))| {
-            (
-                schema_id.to_string(),
-                build_locally_declared_coordinates(schema_idx, schemas),
-            )
+            // We ignore _resolution_result here because any errors are handled in build_locally_available_coordinates
+            let (local_coordinates, _resolution_result) =
+                build_locally_declared_coordinates(schema_idx, schemas);
+            (schema_id.to_string(), local_coordinates)
         })
         .collect()
 }
 
-/// Builds a lookup table for the type coordinates of all locally declared types
-fn build_locally_declared_coordinates(schema_idx: usize, schemas: &SchemaSlice) -> CoordinatesMap {
-    let (_, schema_doc) = &schemas[schema_idx];
-    schema_doc
-        .indexed_type_names()
-        .map(|(type_idx, type_name)| (type_name.to_string(), TypeCoordinates(schema_idx, type_idx)))
-        .collect()
+/// Builds a lookup table for the type coordinates of all locally declared types.
+/// This function always provides a best-effort `CoordinatesMap`, as well as an `IonSchemaResult`
+/// indicating whether any errors occurred.
+fn build_locally_declared_coordinates(
+    schema_idx: usize,
+    schemas: &SchemaSlice,
+) -> (CoordinatesMap, ResolverResult<()>) {
+    let (schema_id, schema_doc) = &schemas[schema_idx];
+    let mut errors = InvalidSchemaErrorCollector::default();
+    let mut coordinates = CoordinatesMap::new();
+
+    let indexed_schema_types = schema_doc.items().enumerate().filter_map(|(i, item)| {
+        if let SchemaItem::Type(name, def) = item {
+            Some((i, name, def))
+        } else {
+            None
+        }
+    });
+    for (type_idx, type_name, type_def) in indexed_schema_types {
+        let conflict =
+            coordinates.insert(type_name.to_string(), TypeCoordinates(schema_idx, type_idx));
+        if conflict.is_some() {
+            errors.push_err(invalid_schema!(
+                schema_id,
+                type_def,
+                "type '{type_name}' is defined multiple times"
+            ));
+        }
+    }
+    (coordinates, errors.into_result_with(()))
 }
 
 /// Builds a lookup table for the type coordinates of all types that are visible _within_ the schema
@@ -41,58 +79,74 @@ fn build_locally_available_coordinates(
     global_coordinates: &Map<String, CoordinatesMap>,
     schema_idx: usize,
     schemas: &SchemaSlice,
-) -> IonSchemaResult<CoordinatesMap> {
-    let mut coordinates = build_locally_declared_coordinates(schema_idx, schemas);
+) -> ResolverResult<CoordinatesMap> {
+    let mut errors = InvalidSchemaErrorCollector::default();
+    let (mut coordinates, result) = build_locally_declared_coordinates(schema_idx, schemas);
+    errors.ok_or_push_err(result);
     let (schema_name, schema_doc) = &schemas[schema_idx];
     let Some(header) = schema_doc.header() else {
-        return Ok(coordinates);
+        return errors.into_result_with(coordinates);
     };
+
+    // Track the sources of the imported coordinates, so that if there's a conflict between imports, we can show both
+    let mut import_sources = HashMap::new();
 
     for import in header.imports() {
         let imported_schema_name = import.schema_id().to_string();
-        if let Some(type_name) = import.type_name() {
-            let tc = global_coordinates
-                .get(&imported_schema_name)
-                .ok_or_else(|| {
-                    invalid_schema!(
-                        "Cannot resolve schema '{imported_schema_name}'. Was it loaded?",
-                    )
-                })?
-                .get(&type_name.to_string())
-                .ok_or_else(|| {
-                    invalid_schema!(
-                        "Type '{type_name}' in '{imported_schema_name}' does not exist."
-                    )
-                })?;
-            let local_name = if let Some(alias) = import.type_alias() {
-                alias
-            } else {
-                type_name
-            };
-            if coordinates.insert(local_name.to_string(), *tc).is_some() {
-                invalid_schema!("name conflict for type '{local_name}' imported from '{imported_schema_name}' in schema '{schema_name}'")?;
-            }
-        } else {
-            let imported_types = global_coordinates
-                .get(&imported_schema_name)
-                // This can only happen if people are manually constructing schemas because the
-                // loader ensures that all imported schemas are present.
-                .ok_or_else(|| {
-                    invalid_schema!(
-                        "Cannot resolve schema '{imported_schema_name}'. Was it loaded?"
-                    )
-                })?;
+        let Some(imported_coordinates_map) = global_coordinates.get(&imported_schema_name) else {
+            // This can only happen if people are manually constructing schemas because the
+            // loader ensures that all imported schemas are present.
+            errors.push_err(invalid_schema!(
+                schema_name,
+                import,
+                "target schema not found for import: {import}"
+            ));
+            continue;
+        };
 
-            for (local_name, tc) in imported_types.iter() {
-                if let Some(name_conflict) = coordinates.insert(local_name.to_string(), *tc) {
-                    let (conflict_schema_name, _) = &schemas[name_conflict.0];
-                    invalid_schema!("name conflict in schema '{schema_name}' for type '{local_name}' declared in '{imported_schema_name}' and '{conflict_schema_name}'")?;
+        if let Some(type_name) = import.type_name() {
+            // Importing a specific type
+
+            let local_name = import.type_alias().unwrap_or(type_name);
+            let Some(tc) = imported_coordinates_map.get(&type_name.to_string()) else {
+                errors.push_err(invalid_schema!(
+                    schema_name,
+                    import,
+                    "target type not found for import: {import}"
+                ));
+                continue;
+            };
+            let conflict = coordinates.insert(local_name.to_string(), *tc);
+            match conflict.map(|conflict_tc| import_sources.get(&conflict_tc)) {
+                None => {}
+                Some(None) => errors.push_err(invalid_schema!(
+                    schema_name,
+                    import,
+                    "conflict for type '{local_name}' declared locally and imported by {import}"
+                )),
+                Some(Some(first_import)) => errors.push_err(invalid_schema!(
+                    schema_name,
+                    import,
+                    "conflict for type '{local_name}' imported by '{first_import}' and by {import}"
+                )),
+            }
+            import_sources.insert(*tc, import);
+        } else {
+            // Importing a whole schema
+
+            for (local_name, tc) in imported_coordinates_map.iter() {
+                let conflict = coordinates.insert(local_name.to_string(), *tc);
+                match conflict.map(|conflict_tc| import_sources.get(&conflict_tc)) {
+                    None => {}
+                    Some(None) => errors.push_err(invalid_schema!(schema_name, import, "conflict for type '{local_name}' declared locally and imported by {import}")),
+                    Some(Some(first_import)) => errors.push_err(invalid_schema!(schema_name, import, "conflict for type '{local_name}' imported by '{first_import}' and by {import}")),
                 }
+                import_sources.insert(*tc, import);
             }
         }
     }
 
-    Ok(coordinates)
+    errors.into_result_with(coordinates)
 }
 
 /// Attempts to resolve the type references in one or more [`SchemaDocument`]s, returning an
@@ -120,55 +174,55 @@ pub fn resolve(
 
     let global_type_coordinates = build_global_coordinates(schemas.as_slice());
 
-    let mut type_resolution_errors = vec![];
+    let mut type_resolution_errors = InvalidSchemaErrorCollector::default();
 
+    // Create the locally available coordinate maps so that we can iterate them in parallel with the
+    // schema definitions. This avoids some issues with borrowing schemas in the main loop, since
+    // the main loop needs to borrow each schema mutably.
     let locally_available_coordinates: Vec<_> = schemas
         .iter()
         .enumerate()
         .map(|(schema_idx, (schema_id, schema))| {
             build_locally_available_coordinates(&global_type_coordinates, schema_idx, &schemas)
         })
-        .collect::<IonSchemaResult<_>>()?;
+        .collect();
 
-    for (schema_idx, (schema_name, schema)) in schemas.iter_mut().enumerate() {
-        let local_type_coordinates = locally_available_coordinates.get(schema_idx).unwrap();
-
-        schema.walk(&mut |tr: &mut TypeReference| {
-            let type_name = tr.type_name();
-            let type_ref_coordinates = if let Some(imported_schema_id) = tr.schema_id() {
-                global_type_coordinates
-                    .get(imported_schema_id)
-                    .ok_or_else(|| {
-                        invalid_schema!(
-                            "Cannot resolve schema '{imported_schema_id}'. Was it loaded?"
-                        )
-                    })
-                    .and_then(|ok| {
-                        ok.get(type_name).ok_or_else(|| {
-                            invalid_schema!(
-                                "No type '{type_name}' exists in '{imported_schema_id}'."
-                            )
-                        })
-                    })
-                    .copied()
-            } else {
-                local_type_coordinates
-                    .get(type_name)
-                    .ok_or_else(|| {
-                        invalid_schema!("No type '{type_name}' exists in '{schema_name}'")
-                    })
-                    .copied()
-            };
-            match type_ref_coordinates {
-                Ok(tc) => tr.set_type_coordinates(Some(tc)),
-                Err(e) => type_resolution_errors.push(e),
+    // Main Loop: For each schema, populate the type coordinates for all the type references.
+    for ((schema_idx, local_type_coordinates), (schema_name, schema)) in
+        locally_available_coordinates
+            .into_iter()
+            .enumerate()
+            .zip(schemas.iter_mut())
+    {
+        match local_type_coordinates {
+            Ok(local_type_coordinates) => {
+                schema.walk(&mut |tr: &mut TypeReference| match lookup_type_coordinates(
+                    schema_name,
+                    tr,
+                    &local_type_coordinates,
+                    &global_type_coordinates,
+                ) {
+                    Ok(tc) => tr.set_type_coordinates(Some(tc)),
+                    Err(e) => type_resolution_errors.push_err(e),
+                });
             }
-        });
-    }
-
-    if !type_resolution_errors.is_empty() {
-        // TODO: Report multiple errors
-        return type_resolution_errors.into_iter().next().unwrap();
+            Err(e1) => {
+                // Something is wrong with the locally available coordinates. We'll still try to check
+                // the type references on a best-effort basis in order to provide a complete list of errors.
+                type_resolution_errors.push_err(e1);
+                let partial_local_coordinates = global_type_coordinates.get(schema_name).unwrap();
+                schema.walk(&mut |tr: &mut TypeReference| {
+                    if let Err(e2) = lookup_type_coordinates(
+                        schema_name,
+                        tr,
+                        partial_local_coordinates,
+                        &global_type_coordinates,
+                    ) {
+                        type_resolution_errors.push_err(e2);
+                    }
+                });
+            }
+        };
     }
 
     let schema_store = Arc::new(SchemaStore { schemas });
@@ -178,7 +232,36 @@ pub fn resolve(
         .map(|(name, index)| (name, ResolvedSchema::new(schema_store.clone(), index)))
         .collect();
 
-    Ok(result.into_iter())
+    Ok(type_resolution_errors.into_result_with(result.into_iter())?)
+}
+
+fn lookup_type_coordinates(
+    schema_name: &str,
+    tr: &TypeReference,
+    local_type_coordinates: &CoordinatesMap,
+    global_type_coordinates: &Map<String, CoordinatesMap>,
+) -> ResolverResult<TypeCoordinates> {
+    let type_name = tr.type_name();
+    let coordinates = if let Some(imported_schema_id) = tr.schema_id() {
+        let imported_coordinates =
+            global_type_coordinates
+                .get(imported_schema_id)
+                .ok_or_else(|| {
+                    invalid_schema!(schema_name, tr, "target schema not found for inline import {{ id:\"{imported_schema_id}\", type:'{type_name}' }}")
+                })?;
+        imported_coordinates.get(type_name).ok_or_else(|| {
+            invalid_schema!(schema_name, tr, "target type not found for inline import {{ id:\"{imported_schema_id}\", type:'{type_name}' }}")
+        })?
+    } else {
+        local_type_coordinates.get(type_name).ok_or_else(|| {
+            invalid_schema!(
+                schema_name,
+                tr,
+                "target type not found for type reference '{type_name}'"
+            )
+        })?
+    };
+    Ok(*coordinates)
 }
 
 /// Un-resolves the schemas and returns ownership of the underlying [`SchemaDocument`]s to the caller,
@@ -212,10 +295,13 @@ pub fn unresolve(
 
 #[cfg(test)]
 mod tests {
+    use crate::internal_traits::{LoaderContext, ReadFromIsl};
     use crate::model::constraints::FieldsContent;
     use crate::model::*;
     use crate::resolver::{resolve, unresolve, ResolvedSchema, TypeCoordinates, TypeRefWalker};
-    use crate::{ISL_1_0, ISL_2_0};
+
+    use crate::{Versioned, ISL_1_0, ISL_2_0};
+    use ion_rs::Element;
     use std::collections::HashMap;
 
     #[test]
@@ -493,6 +579,161 @@ mod tests {
 
         let unresolved = unresolve(resolved_clone).unwrap().collect();
         assert_eq!(original, unresolved);
+    }
+
+    macro_rules! assert_resolver_err {
+        ($schemas:expr $(, $fun:expr)?) => {
+            match resolve($schemas) {
+                Ok(_) => panic!("expected a type resolver error"),
+                Err(e) => {
+                    println!("{e}");
+                    $($fun(e);)?
+                }
+            }
+        };
+    }
+
+    #[test]
+    fn duplicate_type_name_should_cause_err() {
+        let mut schemas = HashMap::new();
+        schemas.insert(
+            "aaa.isl".to_string(),
+            SchemaDocument::builder::<ISL_2_0>()
+                .type_definition("foo", TypeDefinition::builder().build())
+                .type_definition("foo", TypeDefinition::builder().build())
+                .build(),
+        );
+        assert_resolver_err!(schemas)
+    }
+
+    #[test]
+    fn missing_import_should_cause_err() {
+        let mut schemas = HashMap::new();
+        schemas.insert(
+            "aaa.isl".to_string(),
+            SchemaDocument::builder::<ISL_2_0>()
+                .header(SchemaHeader::builder().import("foo.isl").build())
+                .build(),
+        );
+        assert_resolver_err!(schemas)
+    }
+
+    #[test]
+    fn missing_import_type_should_cause_err() {
+        let mut schemas = HashMap::new();
+        schemas.insert(
+            "aaa.isl".to_string(),
+            SchemaDocument::builder::<ISL_2_0>()
+                .header(
+                    SchemaHeader::builder()
+                        .import(("foo.isl", "type_a"))
+                        .build(),
+                )
+                .build(),
+        );
+        schemas.insert(
+            "foo.isl".to_string(),
+            SchemaDocument::builder::<ISL_2_0>()
+                .type_definition("type_b", TypeDefinition::builder().build())
+                .build(),
+        );
+        assert_resolver_err!(schemas)
+    }
+
+    #[test]
+    fn duplicate_type_alias_should_cause_err() {
+        let mut schemas = HashMap::new();
+        schemas.insert(
+            "aaa.isl".to_string(),
+            SchemaDocument::builder::<ISL_2_0>()
+                .header(
+                    SchemaHeader::builder()
+                        .import(("foo.isl", "type_a", "alias_a"))
+                        .import(("foo.isl", "type_b", "alias_a"))
+                        .build(),
+                )
+                .build(),
+        );
+        schemas.insert(
+            "foo.isl".to_string(),
+            SchemaDocument::builder::<ISL_2_0>()
+                .type_definition("type_a", TypeDefinition::builder().build())
+                .type_definition("type_b", TypeDefinition::builder().build())
+                .build(),
+        );
+        assert_resolver_err!(schemas)
+    }
+
+    #[test]
+    fn import_conflict_with_local_type_should_cause_err() {
+        let mut schemas = HashMap::new();
+        schemas.insert(
+            "aaa.isl".to_string(),
+            SchemaDocument::builder::<ISL_2_0>()
+                .header(
+                    SchemaHeader::builder()
+                        .import(("foo.isl", "type_a"))
+                        .build(),
+                )
+                .type_definition("type_a", TypeDefinition::builder().build())
+                .build(),
+        );
+        schemas.insert(
+            "foo.isl".to_string(),
+            SchemaDocument::builder::<ISL_2_0>()
+                .type_definition("type_a", TypeDefinition::builder().build())
+                .build(),
+        );
+        assert_resolver_err!(schemas)
+    }
+
+    #[test]
+    fn multiple_errs_can_be_reported() {
+        let schema_ion = "\
+$ion_schema_2_0
+
+type::{
+  name: foo,
+  type: bar,
+}
+type::{
+  name: foo,
+  type: baz,
+}
+        ";
+
+        let schema_items = Element::read_all(schema_ion).unwrap();
+
+        let ctx = LoaderContext::<ISL_2_0>::new();
+        let mut schemas = HashMap::new();
+        schemas.insert(
+            "my_schema.isl".to_string(),
+            SchemaDocument::builder::<ISL_2_0>()
+                // Unresolvable type reference `bar`
+                .type_definition(
+                    "foo",
+                    Versioned::new(
+                        TypeDefinition::try_read(schema_items.get(1).unwrap(), &ctx).unwrap(),
+                    ),
+                )
+                // Redefinition of `foo`
+                // Unresolvable type reference `baz`
+                .type_definition(
+                    "foo",
+                    Versioned::new(
+                        TypeDefinition::try_read(schema_items.get(2).unwrap(), &ctx).unwrap(),
+                    ),
+                )
+                .build(),
+        );
+        assert_resolver_err!(schemas, |e| {
+            let description = format!("{e}");
+            let description: Vec<_> = description.lines().collect();
+            assert_eq!(description.len(), 3);
+            assert!(description[0].starts_with("my_schema.isl:5:9"));
+            assert!(description[1].starts_with("my_schema.isl:7:1"));
+            assert!(description[2].starts_with("my_schema.isl:9:9"));
+        })
     }
 
     // Test Fixtures
