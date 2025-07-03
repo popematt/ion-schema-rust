@@ -8,7 +8,7 @@ mod private {
 }
 
 /// Trait for ISL version marker types.
-pub trait IslVersion: private::IslVersion + Clone {
+pub trait IslVersion: private::IslVersion + Clone + Copy {
     const MAJOR_MINOR: (u8, u8);
     const VERSION_MARKER_TEXT: &'static str;
 }

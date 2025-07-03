@@ -191,7 +191,7 @@ impl ReadConstraint<ISL_2_0> for AnnotationsV2Simple {
         let annotations = ion
             .require_list("annotations constraint")?
             .iter()
-            .map(|el| el.require_symbol("annotations list elements").cloned())
+            .map(|el| el.require_known_symbol("annotations list elements").map(Symbol::from))
             .collect::<Result<Vec<Symbol>, _>>()?;
 
         Ok(Some(AnnotationsV2Simple {

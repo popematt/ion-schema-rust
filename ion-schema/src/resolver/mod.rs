@@ -8,6 +8,7 @@ mod resolved_schema;
 mod type_ref_visitor;
 
 pub use resolve_fn::resolve;
+pub(crate) use resolve_fn::resolve_internal;
 pub use resolve_fn::unresolve;
 pub use resolved_schema::*;
 pub(crate) use type_ref_visitor::*;

@@ -6,7 +6,7 @@ use crate::model::constraints::{ConstraintName, ReadConstraint};
 use crate::model::ranges::IonSchemaRange;
 use crate::model::TypeDefinitionBuilder;
 use crate::resolver::*;
-use crate::result::{invalid_schema_2, IonSchemaResult};
+use crate::result::{invalid_schema_2, IntoErrorCollector, IonSchemaResult};
 use crate::{IonSchemaElement, IslVersion, ViolationRecorder};
 use ion_rs::{Decimal, Element, SequenceWriter, Timestamp, ValueWriter};
 use ion_rs::{Value as IonValue, Value};
@@ -118,11 +118,11 @@ impl<V: IslVersion> ReadConstraint<V> for ValidValues {
         let values = if (ion.one_optional_annotation()?).is_some() {
             bag![read_one_range(ion, ctx)?]
         } else {
-            let c: ReadResult<_> = ion
+            let c = ion
                 .require_list("valid_values")?
                 .elements()
                 .map(|ion| read_one_argument(ion, ctx))
-                .collect();
+                .collect_errors();
             c?
         };
         Ok(Some(ValidValues { values }))

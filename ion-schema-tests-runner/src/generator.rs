@@ -270,6 +270,9 @@ fn generate_preamble(root_dir_path: &Path) -> TokenStream {
         use ion_rs::Sequence;
         use std::hash::{Hash, Hasher};
 
+        // const TEST_SOURCE_ROOT: &'static std::path::Path = std::path::Path::new(#root_dir_token);
+
+
         /// Gets the root directory for the test suite.
         fn __get_test_source_root() -> &'static str { #root_dir_token }
 

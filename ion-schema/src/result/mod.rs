@@ -6,6 +6,7 @@
 mod invalid_schema_error;
 mod isl_source_location;
 
+pub(crate) use invalid_schema_error::IntoErrorCollector;
 pub use invalid_schema_error::InvalidSchemaError;
 pub(crate) use invalid_schema_error::InvalidSchemaErrorCollector;
 pub(crate) use isl_source_location::*;
@@ -49,6 +50,18 @@ impl TryFrom<Result<Infallible, IonSchemaError>> for InvalidSchemaError {
             IonSchemaError::InvalidSchemaError(error) => Ok(error),
             other => Err(other),
         }
+    }
+}
+
+impl From<Infallible> for IonSchemaError {
+    fn from(value: Infallible) -> Self {
+        unreachable!()
+    }
+}
+
+impl From<Infallible> for InvalidSchemaError {
+    fn from(value: Infallible) -> Self {
+        unreachable!()
     }
 }
 

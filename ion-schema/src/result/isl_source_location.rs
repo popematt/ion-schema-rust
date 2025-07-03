@@ -4,6 +4,8 @@ use std::fmt::{Display, Formatter};
 #[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Default, Eq, Ord)]
 pub(crate) struct IslSourceLocation(usize, usize);
 impl IslSourceLocation {
+    pub(crate) const NONE: IslSourceLocation = IslSourceLocation(0, 0);
+
     pub fn new(from: Option<(usize, usize)>) -> Self {
         match from {
             None => IslSourceLocation(0, 0),
@@ -36,5 +38,10 @@ impl HasIslSourceLocation for ion_rs::Element {
             location.row().unwrap_or_default(),
             location.column().unwrap_or_default(),
         )
+    }
+}
+impl HasIslSourceLocation for IslSourceLocation {
+    fn isl_source_location(&self) -> IslSourceLocation {
+        *self
     }
 }

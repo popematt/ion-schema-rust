@@ -5,10 +5,7 @@ use crate::internal_traits::{WriteAsIsl, WriteContext};
 use crate::ion_extension::ElementExtensions;
 use crate::loader::{ReadFromIsl, ReadResult, ReaderContext};
 use crate::resolver::TypeCoordinates;
-use crate::result::{
-    invalid_schema_2, HasIslSourceLocation, IonSchemaResult,
-    IslSourceLocation,
-};
+use crate::result::{invalid_schema_2, HasIslSourceLocation, IonSchemaResult, IslSourceLocation};
 use crate::IslVersion;
 use ion_rs::{Element, StructWriter, Value, ValueWriter};
 

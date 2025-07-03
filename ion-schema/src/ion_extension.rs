@@ -52,10 +52,10 @@ pub(crate) trait ElementExtensions {
     /// field name or if there is more than one value with that field name.
     fn get_required_field(&self, location: &str, field_name: &str) -> ReadResult<&Element>;
 
-    require!(struct -> Struct;);
-    require!(symbol -> Symbol;);
-    require!(list -> Sequence;);
-    require!(string -> str;);
+    fn require_struct(&self, location: &str) -> ReadResult<&Struct>;
+    fn require_symbol(&self, location: &str) -> ReadResult<&Symbol>;
+    fn require_list(&self, location: &str) -> ReadResult<&Sequence>;
+    fn require_string(&self, location: &str) -> ReadResult<&str>;
 
     fn require_known_symbol(&self, location: &str) -> ReadResult<&str>;
 }
@@ -102,14 +102,11 @@ impl ElementExtensions for Element {
     }
 
     fn get_optional_field(&self, location: &str, field_name: &str) -> ReadResult<Option<&Element>> {
-        let mut iter = self.require_struct(location)?.get_all(field_name);
+        let mut iter = <Self as ElementExtensions>::require_struct(self, location)?.get_all(field_name);
         let first = iter.next();
         let second = iter.next();
         if second.is_some() {
-            invalid_schema_2!(
-                self,
-                "Illegal repeated field '{field_name}' in {location}"
-            )
+            invalid_schema_2!(self, "Illegal repeated field '{field_name}' in {location}")
         } else {
             Ok(first)
         }
@@ -119,17 +116,38 @@ impl ElementExtensions for Element {
         if let Some(element) = self.get_optional_field(location, field_name)? {
             Ok(element)
         } else {
-            invalid_schema_2!(
-                self,
-                "Missing required field '{field_name}' in {location}"
-            )
+            invalid_schema_2!(self, "Missing required field '{field_name}' in {location}")
         }
     }
 
-    require!(struct -> Struct {});
-    require!(symbol -> Symbol {});
-    require!(string -> str {});
-    require!(list -> Sequence {});
+    fn require_struct(&self, location: &str) -> ReadResult<&Struct> {
+        match self.as_struct() {
+            Some(value) => Ok(value),
+            None => invalid_schema_2!( self , "{location} must be a struct"),
+        }
+    }
+
+    fn require_symbol(&self, location: &str) -> ReadResult<&Symbol> {
+        match self.as_symbol() {
+            Some(value) => Ok(value),
+            None => invalid_schema_2!( self , "{location} must be a symbol"),
+        }
+    }
+
+    fn require_string(&self, location: &str) -> ReadResult<&str> {
+        match self.as_string() {
+            Some(value) => Ok(value),
+            None => invalid_schema_2!( self , "{location} must be a string"),
+        }
+    }
+
+    fn require_list(&self, location: &str) -> ReadResult<&Sequence> {
+        match self.as_list() {
+            Some(value) => Ok(value),
+            None => invalid_schema_2!( self , "{location} must be a list"),
+        }
+    }
+
     fn require_known_symbol(&self, location: &str) -> ReadResult<&str> {
         match self.as_symbol() {
             Some(value) => {

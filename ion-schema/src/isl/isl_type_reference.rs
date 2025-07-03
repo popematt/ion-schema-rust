@@ -4,9 +4,7 @@ use crate::isl::ranges::{Limit, UsizeRange};
 use crate::isl::IslVersion;
 use crate::isl_require;
 use crate::loader::{ReadFromIsl, ReadResult, ReaderContext};
-use crate::result::{
-    invalid_schema, unresolvable_schema_error, IonSchemaResult,
-};
+use crate::result::{invalid_schema, unresolvable_schema_error, IonSchemaResult};
 use crate::system::{PendingTypes, TypeId, TypeStore};
 use crate::type_reference::{TypeReference, VariablyOccurringTypeRef};
 use crate::types::TypeDefinitionImpl;

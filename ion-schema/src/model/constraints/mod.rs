@@ -30,7 +30,7 @@ use crate::IslVersion;
 use ion_rs::Element;
 use std::fmt::Debug;
 
-use crate::loader::{ReadResult, ReaderContext};
+use crate::loader::{ReadFromIsl, ReadFromIslWithPartialSuccess, ReadResult, ReadResultWithPartialSuccess, ReaderContext};
 pub use all_of::*;
 pub use annotations::*;
 pub use any_constraint::*;
@@ -65,11 +65,41 @@ pub(super) trait ReadConstraint<V: IslVersion>
 where
     Self: Sized,
 {
+    /// Return
+    /// * Ok(None) if the constraint isn't supported for the given ISL version
+    /// * Err(_) if the constraint is supported, but there's e.g. invalid syntax
+    /// * Ok(Some(_)) if a constraint was successfully read
     fn read_constraint(ion: &Element, ctx: &ReaderContext<V>) -> ReadResult<Option<Self>> {
         // Default implementation indicates this is unsupported for a particular ISL version.
         Ok(None)
     }
 }
+pub(super) trait ReadConstraintWithPartialSuccess<V: IslVersion>
+where
+    Self: Sized,
+{
+    /// Return
+    /// * Ok(None) if the constraint isn't supported for the given ISL version
+    /// * Err(_) if the constraint is supported, but there's e.g. invalid syntax
+    /// * Ok(Some(_)) if a constraint was successfully read
+    fn read_constraint_with_partial_success(ion: &Element, ctx: &ReaderContext<V>) -> ReadResultWithPartialSuccess<Option<Self>>;
+}
+impl<V: IslVersion, T: ReadConstraint<V>> ReadConstraintWithPartialSuccess<V> for T {
+    // fn read_constraint_with_partial_success(
+    //     ion: &Element,
+    //     ctx: &ReaderContext<V>,
+    // ) -> ReadResultWithPartialSuccess<Self> {
+    //
+    // }
+
+    fn read_constraint_with_partial_success(
+        ion: &Element,
+        ctx: &ReaderContext<V>,
+    ) -> ReadResultWithPartialSuccess<Option<Self>> {
+        Self::read_constraint(ion, ctx).map_err(|e| (None, e))
+    }
+}
+
 
 #[cfg(test)]
 /// Runs a test case for [`ReadConstraint`](crate::model::constraints::ReadConstraint).

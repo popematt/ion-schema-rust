@@ -5,7 +5,9 @@ use crate::result::{IonSchemaError, IonSchemaResult};
 use ion_rs::{Element, Sequence};
 use paste::paste;
 use std::collections::HashMap;
+use std::convert::Infallible;
 use std::fs;
+use std::hash::Hash;
 use std::path::Path;
 
 ///
@@ -82,21 +84,34 @@ impl DocumentAuthority for Path {
     }
 }
 
-impl DocumentAuthority for HashMap<String, String> {
-    fn elements(&self, id: &str) -> IonSchemaResult<Option<DocumentContent>> {
-        if let Some(ion_content) = self.get(id) {
-            Ok(Some(Element::read_all(ion_content)?.into()))
-        } else {
-            Ok(None)
+macro_rules! map_document_authority {
+    ($V:ty, $value_to_doc_content_fn:expr) => {
+        impl DocumentAuthority for HashMap<String, $V> {
+            fn elements(&self, id: &str) -> IonSchemaResult<Option<DocumentContent>> {
+                if let Some(ion_content) = self.get(id) {
+                    Ok(Some($value_to_doc_content_fn(ion_content)?.into()))
+                } else {
+                    Ok(None)
+                }
+            }
         }
-    }
+        impl DocumentAuthority for HashMap<&str, $V> {
+            fn elements(&self, id: &str) -> IonSchemaResult<Option<DocumentContent>> {
+                if let Some(ion_content) = self.get(id) {
+                    Ok(Some($value_to_doc_content_fn(ion_content)?.into()))
+                } else {
+                    Ok(None)
+                }
+            }
+        }
+    };
 }
-
-impl DocumentAuthority for HashMap<String, Vec<Element>> {
-    fn elements(&self, id: &str) -> IonSchemaResult<Option<DocumentContent>> {
-        Ok(self.get(id).map(|elements| elements.as_slice().into()))
-    }
-}
+map_document_authority!(&str, Element::read_all);
+map_document_authority!(&[u8], Element::read_all);
+map_document_authority!(String, Element::read_all);
+map_document_authority!(Vec<Element>, |it| Result::<_, Infallible>::Ok(
+    Vec::as_slice(it)
+));
 
 impl DocumentAuthority for Box<dyn DocumentAuthority> {
     fn elements(&self, id: &str) -> IonSchemaResult<Option<DocumentContent>> {

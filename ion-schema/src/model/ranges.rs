@@ -4,10 +4,7 @@
 use crate::internal_traits::{WriteAsIsl, WriteContext};
 use crate::ion_extension::ElementExtensions;
 use crate::loader::{ReadFromIsl, ReadResult, ReaderContext};
-use crate::result::{
-    invalid_schema, invalid_schema_2, InvalidSchemaError,
-    IonSchemaResult,
-};
+use crate::result::{invalid_schema, invalid_schema_2, InvalidSchemaError, IonSchemaResult};
 use crate::IslVersion;
 use hidden::RangeBoundType;
 use ion_rs::{Annotatable, Element, SequenceWriter, ValueWriter, WriteAsIon};
@@ -216,7 +213,7 @@ mod tests {
     use crate::internal_traits::*;
     use crate::loader::{ReadFromIsl, ReadResult, ReaderContext};
     use crate::model::ranges::IonSchemaRange;
-    
+
     use crate::ISL_2_0;
     use ion_rs::v1_0::Text;
     use ion_rs::{Element, SequenceWriter, Writer};

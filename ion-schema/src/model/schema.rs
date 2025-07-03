@@ -58,7 +58,7 @@ impl SchemaDocument {
         SchemaDocumentBuilder::new()
     }
 
-    pub(crate) fn new<V: IslVersion>(items: Vec<SchemaItem>) -> Self {
+    pub(crate) fn new(isl_version: (u8, u8), items: Vec<SchemaItem>) -> Self {
         let types_by_name = items
             .iter()
             .enumerate()
@@ -67,7 +67,6 @@ impl SchemaDocument {
                 _ => None,
             })
             .collect();
-        let isl_version = V::MAJOR_MINOR;
         SchemaDocument {
             isl_version,
             items,
@@ -213,7 +212,7 @@ impl<V: IslVersion, S> SchemaDocumentBuilder<V, S> {
     }
 
     pub fn build(self) -> SchemaDocument {
-        SchemaDocument::new::<V>(self.items)
+        SchemaDocument::new(V::MAJOR_MINOR, self.items)
     }
 
     fn change_state<ToState>(self) -> SchemaDocumentBuilder<V, ToState> {

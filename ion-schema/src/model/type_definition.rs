@@ -9,7 +9,8 @@ use crate::model::bag::Bag;
 use crate::model::constraints::*;
 use crate::resolver::impl_type_ref_walker;
 use crate::result::{
-    invalid_schema_2, HasIslSourceLocation, InvalidSchemaError, IonSchemaResult, IslSourceLocation,
+    invalid_schema_2, HasIslSourceLocation, InvalidSchemaError, InvalidSchemaErrorCollector,
+    IonSchemaResult, IslSourceLocation,
 };
 use crate::{IonSchemaElement, IslVersion, ViolationRecorder, ISL_1_0, ISL_2_0};
 use ion_rs::{Element, IonData, StructWriter, Symbol, ValueWriter};
@@ -161,27 +162,37 @@ impl ReadFromIsl<ISL_1_0> for TypeDefinition {
     fn try_read(ion: &Element, ctx: &ReaderContext<ISL_1_0>) -> Result<Self, InvalidSchemaError> {
         let struct_ = ion.require_struct("type definition")?;
         let mut builder = TypeDefinitionBuilder::<ISL_1_0>::new();
+        let mut error_collector = InvalidSchemaErrorCollector::default();
         let mut child_ctx = *ctx;
         child_ctx.is_top_level = false;
         for (name, value) in struct_.fields() {
             let Some(constraint_name) = name.text() else {
-                invalid_schema_2!(
+                error_collector.push_err(invalid_schema_2!(
                     value,
                     "cannot interpret fields where the field name has unknown text"
-                )?
+                ));
+                continue;
             };
             if constraint_name == "name" && ctx.is_top_level {
                 // Ignore "name" if we're in a top-level type declaration. It's handled in SchemaItem.
                 continue;
             }
-            match AnyConstraint::read_constraint(constraint_name, value, &child_ctx)? {
+
+            match error_collector
+                .ok_or_push_err(AnyConstraint::read_constraint(
+                    constraint_name,
+                    value,
+                    &child_ctx,
+                ))
+                .flatten()
+            {
                 Some(constraint) => builder.constraints.push(constraint),
                 None => builder
                     .open_content
                     .push((name.clone(), IonData::from(value.clone()))),
             }
         }
-        Ok(Versioned::into_inner(
+        error_collector.into_result_with(Versioned::into_inner(
             builder.build_with_source_location(ion.isl_source_location()),
         ))
     }
@@ -191,20 +202,30 @@ impl ReadFromIsl<ISL_2_0> for TypeDefinition {
     fn try_read(ion: &Element, ctx: &ReaderContext<ISL_2_0>) -> Result<Self, InvalidSchemaError> {
         let struct_ = ion.require_struct("type definition")?;
         let mut builder = TypeDefinitionBuilder::<ISL_2_0>::new();
+        let mut error_collector = InvalidSchemaErrorCollector::default();
         let mut child_ctx = *ctx;
         child_ctx.is_top_level = false;
         for (name, value) in struct_.fields() {
             let Some(constraint_name) = name.text() else {
-                invalid_schema_2!(
+                error_collector.push_err(invalid_schema_2!(
                     value,
                     "cannot interpret fields where the field name has unknown text"
-                )?
+                ));
+                continue;
             };
             if constraint_name == "name" && ctx.is_top_level {
                 // Ignore "name" if we're in a top-level type declaration. It's handled in SchemaItem.
                 continue;
             }
-            match AnyConstraint::read_constraint(constraint_name, value, &child_ctx)? {
+
+            match error_collector
+                .ok_or_push_err(AnyConstraint::read_constraint(
+                    constraint_name,
+                    value,
+                    &child_ctx,
+                ))
+                .flatten()
+            {
                 Some(constraint) => builder.constraints.push(constraint),
                 None => {
                     // TODO: Check if this particular open content is legal
@@ -214,7 +235,7 @@ impl ReadFromIsl<ISL_2_0> for TypeDefinition {
                 }
             }
         }
-        Ok(Versioned::into_inner(
+        error_collector.into_result_with(Versioned::into_inner(
             builder.build_with_source_location(ion.isl_source_location()),
         ))
     }

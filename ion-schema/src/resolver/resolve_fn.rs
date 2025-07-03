@@ -5,7 +5,7 @@ pub(crate) use super::*;
 use crate::model::{SchemaDocument, SchemaItem, TypeReference};
 use crate::result::{
     invalid_schema as ion_schema_error_invalid_schema, InvalidSchemaError,
-    InvalidSchemaErrorCollector,
+    InvalidSchemaErrorCollector, IonSchemaError,
 };
 use crate::IonSchemaResult;
 use std::collections::HashMap;
@@ -154,10 +154,18 @@ fn build_locally_available_coordinates(
 pub fn resolve(
     schemas: impl IntoIterator<Item = (String, SchemaDocument)>,
 ) -> IonSchemaResult<impl Iterator<Item = (String, ResolvedSchema)>> {
+    resolve_internal(schemas)
+        .map(Vec::into_iter)
+        .map_err(IonSchemaError::InvalidSchemaError)
+}
+
+pub(crate) fn resolve_internal(
+    schemas: impl IntoIterator<Item = (String, SchemaDocument)>,
+) -> Result<Vec<(String, ResolvedSchema)>, InvalidSchemaError> {
     let mut schemas: Vec<_> = schemas.into_iter().collect();
 
     if schemas.is_empty() {
-        return Ok(vec![].into_iter());
+        return Ok(vec![]);
     }
 
     if cfg!(test) {
@@ -232,7 +240,7 @@ pub fn resolve(
         .map(|(name, index)| (name, ResolvedSchema::new(schema_store.clone(), index)))
         .collect();
 
-    Ok(type_resolution_errors.into_result_with(result.into_iter())?)
+    Ok(type_resolution_errors.into_result_with(result)?)
 }
 
 fn lookup_type_coordinates(
