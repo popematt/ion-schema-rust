@@ -24,15 +24,15 @@ impl ElementExtensions for Element {
     }
     fn as_u64(&self) -> Option<u64> {
         match self.value() {
-            Value::Int(i) => i.as_i128()?.to_u64(),
+            Value::Int(i) => i.as_u64(),
             _ => None,
         }
     }
     fn any_number_as_decimal(&self) -> Option<Decimal> {
         match self.value() {
-            Value::Int(i) => Some((*i).into()),
+            Value::Int(i) => Some(i.clone().into()),
             Value::Float(f) => (*f).try_into().ok(),
-            Value::Decimal(d) => Some(*d),
+            Value::Decimal(d) => Some(d.clone()),
             _ => None,
         }
     }

@@ -163,6 +163,8 @@ impl RangeValidation<TimestampPrecision> for TimestampPrecisionRange {
                 let end_value = upper.int_value();
 
                 // Checking for e.g. range::[exclusive::1, exclusive::2] which is empty.
+                // Integer overflow is not possible here because TimestampPrecision range boundaries
+                // have an i64 range of `-4 ..= 9`.
                 let adjusted_lower = start_value + 1;
                 adjusted_lower >= end_value
             }

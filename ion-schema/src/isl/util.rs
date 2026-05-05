@@ -6,7 +6,6 @@ use crate::result::{invalid_schema_error, IonSchemaError, IonSchemaResult};
 use ion_rs::TimestampPrecision as Precision;
 use ion_rs::{Element, IonResult, Value, ValueWriter, WriteAsIon};
 use ion_rs::{IonType, Timestamp};
-use num_traits::abs;
 use std::cmp::Ordering;
 use std::fmt;
 use std::fmt::{Display, Formatter};
@@ -333,8 +332,9 @@ impl Display for TimestampOffset {
             Unknown => write!(f, "-00:00"),
             Known(offset) => {
                 let sign = if offset < &0 { "-" } else { "+" };
-                let hours = abs(*offset) / 60;
-                let minutes = abs(*offset) - hours * 60;
+                let abs_offset = offset.unsigned_abs();
+                let hours = abs_offset / 60;
+                let minutes = abs_offset - hours * 60;
                 write!(f, "{sign}{hours:02}:{minutes:02}")
             }
         }
@@ -346,8 +346,9 @@ impl WriteAsIon for TimestampOffset {
         match &self {
             TimestampOffset::Known(offset) => {
                 let sign = if offset < &0 { "-" } else { "+" };
-                let hours = abs(*offset) / 60;
-                let minutes = abs(*offset) - hours * 60;
+                let abs_offset = offset.unsigned_abs();
+                let hours = abs_offset / 60;
+                let minutes = abs_offset - hours * 60;
                 writer.write_string(format!("{sign}{hours:02}:{minutes:02}"))
             }
             TimestampOffset::Unknown => writer.write_string("-00:00"),

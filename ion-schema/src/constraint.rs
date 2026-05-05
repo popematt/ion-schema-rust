@@ -30,7 +30,6 @@ use regex::{Regex, RegexBuilder};
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Display, Formatter};
 use std::iter::Peekable;
-use std::ops::Neg;
 use std::str::Chars;
 
 /// Provides validation for schema Constraint
@@ -1740,8 +1739,7 @@ impl ConstraintValidator for ExponentConstraint {
             .expect_element_of_type(&[IonType::Decimal], "exponent", ion_path)?
             .as_decimal()
             .unwrap()
-            .scale()
-            .neg();
+            .exponent();
 
         // get isl decimal exponent as a range
         let exponent_range: &I64Range = self.exponent();
