@@ -505,12 +505,8 @@ impl TypeDefinitionImpl {
 
         if let Some(type_name) = type_name {
             // update with this resolved type_def to context for type_id
-            actual_type_id = pending_types.update_named_type(
-                type_id,
-                type_name,
-                type_def,
-                type_store,
-            );
+            actual_type_id =
+                pending_types.update_named_type(type_id, type_name, type_def, type_store);
 
             // clear parent information from type_store as the type is already added in the type_store now
             pending_types.clear_parent();

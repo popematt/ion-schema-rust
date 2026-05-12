@@ -1,5 +1,6 @@
 use crate::ion_extension::ElementExtensions;
 use crate::isl::ranges::{NumberRange, TimestampRange};
+use crate::isl::util::TimestampOffset::{Known, Unknown};
 use crate::isl::IslVersion;
 use crate::isl_require;
 use crate::result::{invalid_schema_error, IonSchemaError, IonSchemaResult};
@@ -9,7 +10,6 @@ use ion_rs::{IonType, Timestamp};
 use std::cmp::Ordering;
 use std::fmt;
 use std::fmt::{Display, Formatter};
-use crate::isl::util::TimestampOffset::{Known, Unknown};
 
 /// Represents an annotation for `annotations` constraint.
 /// ```ion
@@ -209,9 +209,9 @@ impl ValidValue {
         if element.annotations().contains("range") {
             isl_require!(annotation.len() == 1 => "Unexpected annotation(s) on valid values argument: {element}")?;
             // Does it contain any timestamps
-            let has_timestamp = element.as_sequence().is_some_and(|s| {
-                s.elements().any(|it| it.ion_type() == IonType::Timestamp)
-            });
+            let has_timestamp = element
+                .as_sequence()
+                .is_some_and(|s| s.elements().any(|it| it.ion_type() == IonType::Timestamp));
             let range = if has_timestamp {
                 ValidValue::TimestampRange(TimestampRange::from_ion_element(element, |e| {
                     e.as_timestamp()

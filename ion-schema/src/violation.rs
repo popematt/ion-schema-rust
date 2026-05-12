@@ -210,7 +210,6 @@ macro_rules! assert_equivalent_violations {
     };
 }
 
-
 /// Equivalence for `Violation`s is not supported due to its tree structure of having children violations.
 /// This macro can be used for comparing if two violations are not equal and uses `flattened_violations` for the comparison.
 #[macro_export]
