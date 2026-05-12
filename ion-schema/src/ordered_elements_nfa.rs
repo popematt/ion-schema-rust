@@ -395,11 +395,11 @@ impl State {
                 }
             }
             State::Final(_) => {
-                if element.is_some() {
+                if let Some(el) = element {
                     Err(Violation::new(
                         "ordered_elements",
                         ViolationCode::ElementMismatched,
-                        format!("expected <END OF SEQUENCE>; found: {}", element.unwrap()),
+                        format!("expected <END OF SEQUENCE>; found: {}", el),
                         ion_path,
                     ))
                 } else {
@@ -422,6 +422,7 @@ impl Display for State {
 }
 
 /// The reason why a transition (or edge) in the state machine graph cannot be traversed.
+#[allow(clippy::enum_variant_names)]
 #[derive(Debug)]
 enum TraversalError {
     CannotEnterState(StateId, Violation),

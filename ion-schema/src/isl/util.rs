@@ -1,12 +1,12 @@
 use crate::ion_extension::ElementExtensions;
 use crate::isl::ranges::{NumberRange, TimestampRange};
+use crate::isl::util::TimestampOffset::{Known, Unknown};
 use crate::isl::IslVersion;
 use crate::isl_require;
 use crate::result::{invalid_schema_error, IonSchemaError, IonSchemaResult};
 use ion_rs::TimestampPrecision as Precision;
 use ion_rs::{Element, IonResult, Value, ValueWriter, WriteAsIon};
 use ion_rs::{IonType, Timestamp};
-use num_traits::abs;
 use std::cmp::Ordering;
 use std::fmt;
 use std::fmt::{Display, Formatter};
@@ -209,9 +209,9 @@ impl ValidValue {
         if element.annotations().contains("range") {
             isl_require!(annotation.len() == 1 => "Unexpected annotation(s) on valid values argument: {element}")?;
             // Does it contain any timestamps
-            let has_timestamp = element.as_sequence().map_or(false, |s| {
-                s.elements().any(|it| it.ion_type() == IonType::Timestamp)
-            });
+            let has_timestamp = element
+                .as_sequence()
+                .is_some_and(|s| s.elements().any(|it| it.ion_type() == IonType::Timestamp));
             let range = if has_timestamp {
                 ValidValue::TimestampRange(TimestampRange::from_ion_element(element, |e| {
                     e.as_timestamp()
@@ -328,13 +328,13 @@ impl From<Option<i32>> for TimestampOffset {
 
 impl Display for TimestampOffset {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        use TimestampOffset::*;
         match &self {
-            Unknown => write!(f, "-00:00"),
+            Unknown => f.write_str("-00:00"),
             Known(offset) => {
                 let sign = if offset < &0 { "-" } else { "+" };
-                let hours = abs(*offset) / 60;
-                let minutes = abs(*offset) - hours * 60;
+                let abs_offset = offset.unsigned_abs();
+                let hours = abs_offset / 60;
+                let minutes = abs_offset - hours * 60;
                 write!(f, "{sign}{hours:02}:{minutes:02}")
             }
         }
@@ -343,15 +343,7 @@ impl Display for TimestampOffset {
 
 impl WriteAsIon for TimestampOffset {
     fn write_as_ion<V: ValueWriter>(&self, writer: V) -> IonResult<()> {
-        match &self {
-            TimestampOffset::Known(offset) => {
-                let sign = if offset < &0 { "-" } else { "+" };
-                let hours = abs(*offset) / 60;
-                let minutes = abs(*offset) - hours * 60;
-                writer.write_string(format!("{sign}{hours:02}:{minutes:02}"))
-            }
-            TimestampOffset::Unknown => writer.write_string("-00:00"),
-        }
+        writer.write_string(self.to_string())
     }
 }
 

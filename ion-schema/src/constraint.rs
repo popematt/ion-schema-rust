@@ -30,7 +30,6 @@ use regex::{Regex, RegexBuilder};
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Display, Formatter};
 use std::iter::Peekable;
-use std::ops::Neg;
 use std::str::Chars;
 
 /// Provides validation for schema Constraint
@@ -1140,7 +1139,7 @@ impl ConstraintValidator for ContainerLengthConstraint {
         let size = if let Some(element_iter) = value.as_sequence_iter() {
             element_iter.count()
         } else if let Some(strukt) = value.as_struct() {
-            strukt.fields().map(|(k, v)| v).count()
+            strukt.fields().count()
         } else {
             return Err(Violation::new(
                 "container_length",
@@ -1740,8 +1739,7 @@ impl ConstraintValidator for ExponentConstraint {
             .expect_element_of_type(&[IonType::Decimal], "exponent", ion_path)?
             .as_decimal()
             .unwrap()
-            .scale()
-            .neg();
+            .exponent();
 
         // get isl decimal exponent as a range
         let exponent_range: &I64Range = self.exponent();
@@ -1988,10 +1986,8 @@ impl RegexConstraint {
         while let Some(ch) = si.next() {
             sb.push(ch);
             match ch {
-                '&' => {
-                    if si.peek() == Some(&'&') {
-                        return invalid_schema_error("'&&' is not supported in a character class");
-                    }
+                '&' if si.peek() == Some(&'&') => {
+                    return invalid_schema_error("'&&' is not supported in a character class");
                 }
                 '[' => return invalid_schema_error("'[' must be escaped within a character class"),
                 '\\' => {
