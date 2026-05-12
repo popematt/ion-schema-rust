@@ -9,6 +9,7 @@ use ion_rs::{IonType, Timestamp};
 use std::cmp::Ordering;
 use std::fmt;
 use std::fmt::{Display, Formatter};
+use crate::isl::util::TimestampOffset::{Known, Unknown};
 
 /// Represents an annotation for `annotations` constraint.
 /// ```ion
@@ -277,6 +278,21 @@ pub enum TimestampOffset {
     Unknown,    // represents unknown timestamp offset "-00:00"
 }
 
+impl TimestampOffset {
+    fn to_string(&self) -> String {
+        match &self {
+            Unknown => "-00:00".to_string(),
+            Known(offset) => {
+                let sign = if offset < &0 { "-" } else { "+" };
+                let abs_offset = offset.unsigned_abs();
+                let hours = abs_offset / 60;
+                let minutes = abs_offset - hours * 60;
+                format!("{sign}{hours:02}:{minutes:02}")
+            }
+        }
+    }
+}
+
 impl TryFrom<&str> for TimestampOffset {
     type Error = IonSchemaError;
 
@@ -327,32 +343,13 @@ impl From<Option<i32>> for TimestampOffset {
 
 impl Display for TimestampOffset {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        use TimestampOffset::*;
-        match &self {
-            Unknown => write!(f, "-00:00"),
-            Known(offset) => {
-                let sign = if offset < &0 { "-" } else { "+" };
-                let abs_offset = offset.unsigned_abs();
-                let hours = abs_offset / 60;
-                let minutes = abs_offset - hours * 60;
-                write!(f, "{sign}{hours:02}:{minutes:02}")
-            }
-        }
+        f.write_str(&self.to_string())
     }
 }
 
 impl WriteAsIon for TimestampOffset {
     fn write_as_ion<V: ValueWriter>(&self, writer: V) -> IonResult<()> {
-        match &self {
-            TimestampOffset::Known(offset) => {
-                let sign = if offset < &0 { "-" } else { "+" };
-                let abs_offset = offset.unsigned_abs();
-                let hours = abs_offset / 60;
-                let minutes = abs_offset - hours * 60;
-                writer.write_string(format!("{sign}{hours:02}:{minutes:02}"))
-            }
-            TimestampOffset::Unknown => writer.write_string("-00:00"),
-        }
+        writer.write_string(self.to_string())
     }
 }
 
