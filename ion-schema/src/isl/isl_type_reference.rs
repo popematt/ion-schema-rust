@@ -1,4 +1,3 @@
-use crate::ion_extension::ElementExtensions;
 use crate::isl::isl_import::{IslImport, IslImportType};
 use crate::isl::isl_type::IslType;
 use crate::isl::ranges::{Limit, UsizeRange};

@@ -1,6 +1,5 @@
 use ion_rs::Decimal;
 use ion_rs::{Element, Value};
-use num_traits::ToPrimitive;
 
 /// Trait for adding extensions to [`Element`] that are useful for implementing Ion Schema.
 pub(crate) trait ElementExtensions {

@@ -3,6 +3,7 @@
 //!
 //! * `get_types`: This function returns an [`SchemaTypeIterator`] which can be used to iterate over the [`TypeDefinition`]s.
 //! * `get_type`: This function requires to pass the name of a type definition that you want to use for validation.
+//!
 //! It returns the [`TypeDefinition`] if it is defined in the [`Schema`] otherwise returns [`None`].
 //!
 

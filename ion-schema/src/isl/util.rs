@@ -208,7 +208,7 @@ impl ValidValue {
         if element.annotations().contains("range") {
             isl_require!(annotation.len() == 1 => "Unexpected annotation(s) on valid values argument: {element}")?;
             // Does it contain any timestamps
-            let has_timestamp = element.as_sequence().map_or(false, |s| {
+            let has_timestamp = element.as_sequence().is_some_and(|s| {
                 s.elements().any(|it| it.ion_type() == IonType::Timestamp)
             });
             let range = if has_timestamp {
