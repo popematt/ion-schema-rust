@@ -278,21 +278,6 @@ pub enum TimestampOffset {
     Unknown,    // represents unknown timestamp offset "-00:00"
 }
 
-impl TimestampOffset {
-    fn to_string(&self) -> String {
-        match &self {
-            Unknown => "-00:00".to_string(),
-            Known(offset) => {
-                let sign = if offset < &0 { "-" } else { "+" };
-                let abs_offset = offset.unsigned_abs();
-                let hours = abs_offset / 60;
-                let minutes = abs_offset - hours * 60;
-                format!("{sign}{hours:02}:{minutes:02}")
-            }
-        }
-    }
-}
-
 impl TryFrom<&str> for TimestampOffset {
     type Error = IonSchemaError;
 
@@ -343,7 +328,16 @@ impl From<Option<i32>> for TimestampOffset {
 
 impl Display for TimestampOffset {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.to_string())
+        match &self {
+            Unknown => f.write_str("-00:00"),
+            Known(offset) => {
+                let sign = if offset < &0 { "-" } else { "+" };
+                let abs_offset = offset.unsigned_abs();
+                let hours = abs_offset / 60;
+                let minutes = abs_offset - hours * 60;
+                write!(f, "{sign}{hours:02}:{minutes:02}")
+            }
+        }
     }
 }
 

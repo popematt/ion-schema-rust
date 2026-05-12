@@ -1986,10 +1986,8 @@ impl RegexConstraint {
         while let Some(ch) = si.next() {
             sb.push(ch);
             match ch {
-                '&' => {
-                    if si.peek() == Some(&'&') {
-                        return invalid_schema_error("'&&' is not supported in a character class");
-                    }
+                '&' if si.peek() == Some(&'&') => {
+                    return invalid_schema_error("'&&' is not supported in a character class");
                 }
                 '[' => return invalid_schema_error("'[' must be escaped within a character class"),
                 '\\' => {
